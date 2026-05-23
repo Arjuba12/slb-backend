@@ -11,21 +11,21 @@ const getAll = async (req, res) => {
         const { kelas_id, is_aktif, search } = req.query;
 
         let query = `
-            SELECT s.id, s.nisn, s.nama, s.tgl_lahir, s.jenis_kelamin, s.alamat, s.kebutuhan_khusus,
+            SELECT s.siswa_id AS id, s.nisn, s.nama, s.tgl_lahir, s.jenis_kelamin, s.alamat, s.kebutuhan_khusus,
                    s.kelas_id, s.tahun_masuk, s.foto, s.is_aktif, s.created_at, s.updated_at,
                    k.nama_kelas, k.tahun_ajaran,
                    ANY_VALUE(u_wali.nama) AS nama_wali,
                    ANY_VALUE((
                         SELECT COUNT(*)
                         FROM absensi a
-                        WHERE a.siswa_id = s.id
+                        WHERE a.siswa_id = s.siswa_id
                         AND a.status = 'Alpha'
                         AND a.tanggal >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                    )) AS alpha_bulan_ini
             FROM siswa s
-            LEFT JOIN kelas k ON k.id = s.kelas_id
-            LEFT JOIN wali_siswa ws ON ws.siswa_id = s.id AND ws.is_primer = 1
-            LEFT JOIN users u_wali ON u_wali.id = ws.user_id
+            LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
+            LEFT JOIN wali_siswa ws ON ws.siswa_id = s.siswa_id AND ws.is_primer = 1
+            LEFT JOIN users u_wali ON u_wali.user_id = ws.user_id
             WHERE 1=1
         `;
 
@@ -39,7 +39,7 @@ const getAll = async (req, res) => {
             console.log("\nROLE USER = GURU");
 
             const [guruRows] = await db.execute(
-                'SELECT id FROM guru WHERE user_id = ?',
+                'SELECT guru_id AS id FROM guru WHERE user_id = ?',
                 [req.user.id]
             );
 
@@ -59,7 +59,7 @@ const getAll = async (req, res) => {
                 console.log("KELAS_GURU ROWS:", kelasGuruRows);
 
                 query += `
-                    AND k.id IN (
+                    AND k.kelas_id IN (
                         SELECT kelas_id
                         FROM kelas_guru
                         WHERE guru_id = ?
@@ -83,7 +83,7 @@ const getAll = async (req, res) => {
             console.log("\nROLE USER = WALI");
 
             query += `
-                AND s.id IN (
+                AND s.siswa_id IN (
                     SELECT siswa_id
                     FROM wali_siswa
                     WHERE user_id = ?
@@ -118,7 +118,7 @@ const getAll = async (req, res) => {
         }
 
         query += `
-            GROUP BY s.id, k.nama_kelas, k.tahun_ajaran
+            GROUP BY s.siswa_id, k.nama_kelas, k.tahun_ajaran
             ORDER BY k.nama_kelas, s.nama
         `;
 
@@ -161,19 +161,19 @@ const getAll = async (req, res) => {
 const getById = async (req, res) => {
     try {
         const [rows] = await db.execute(`
-            SELECT s.id, s.nisn, s.nama, s.tgl_lahir, s.jenis_kelamin, s.alamat, s.kebutuhan_khusus,
+            SELECT s.siswa_id AS id, s.nisn, s.nama, s.tgl_lahir, s.jenis_kelamin, s.alamat, s.kebutuhan_khusus,
                    s.kelas_id, s.tahun_masuk, s.foto, s.is_aktif, s.created_at, s.updated_at,
                    k.nama_kelas, k.tahun_ajaran, t.nama AS tingkat,
                    ANY_VALUE(u_wali.nama) AS nama_wali,
                    ANY_VALUE(u_wali.no_hp) AS hp_wali,
                    ANY_VALUE(u_wali.email) AS email_wali
             FROM siswa s
-            LEFT JOIN kelas k ON k.id = s.kelas_id
-            LEFT JOIN tingkat t ON t.id = k.tingkat_id
-            LEFT JOIN wali_siswa ws ON ws.siswa_id = s.id AND ws.is_primer = 1
-            LEFT JOIN users u_wali ON u_wali.id = ws.user_id
-            WHERE s.id = ?
-            GROUP BY s.id, k.nama_kelas, k.tahun_ajaran, t.nama
+            LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
+            LEFT JOIN tingkat t ON t.tingkat_id = k.tingkat_id
+            LEFT JOIN wali_siswa ws ON ws.siswa_id = s.siswa_id AND ws.is_primer = 1
+            LEFT JOIN users u_wali ON u_wali.user_id = ws.user_id
+            WHERE s.siswa_id = ?
+            GROUP BY s.siswa_id, k.nama_kelas, k.tahun_ajaran, t.nama
         `, [req.params.id]);
 
         if (!rows.length) {
@@ -187,12 +187,12 @@ const getById = async (req, res) => {
             SELECT ap.nama, ap.kode, ROUND(AVG(ph.capaian), 0) AS rata_rata
             FROM aspek_perkembangan ap
             LEFT JOIN perkembangan_harian ph
-                ON ph.aspek_id = ap.id
+                ON ph.aspek_id = ap.aspek_id
                AND ph.siswa_id = ?
                AND MONTH(ph.tanggal) = MONTH(CURDATE())
                AND YEAR(ph.tanggal) = YEAR(CURDATE())
-            GROUP BY ap.id, ap.nama, ap.kode
-            ORDER BY ap.bobot DESC, ap.id ASC
+            GROUP BY ap.aspek_id, ap.nama, ap.kode
+            ORDER BY ap.bobot DESC, ap.aspek_id ASC
         `, [req.params.id]);
 
         const [absensiRows] = await db.execute(`
@@ -233,7 +233,7 @@ const getRekap = async (req, res) => {
 
         if (req.user.role === 'guru') {
             const [guruRows] = await db.execute(
-                'SELECT id FROM guru WHERE user_id = ?',
+                'SELECT guru_id AS id FROM guru WHERE user_id = ?',
                 [req.user.id]
             );
 
@@ -248,7 +248,7 @@ const getRekap = async (req, res) => {
         }
 
         if (req.user.role === 'wali') {
-            where += ` AND s.id IN (
+            where += ` AND s.siswa_id IN (
                 SELECT siswa_id FROM wali_siswa WHERE user_id = ?
             )`;
             params.push(req.user.id);
@@ -276,7 +276,7 @@ const getRekap = async (req, res) => {
                    ${statusSql('base.komunikasi')} AS komunikasi_status,
                    ${statusSql('base.bina_diri')} AS bina_diri_status
             FROM (
-                SELECT s.id, s.nisn, s.nama, s.kelas_id, k.nama_kelas,
+                SELECT s.siswa_id AS id, s.nisn, s.nama, s.kelas_id, k.nama_kelas,
                        CASE
                            WHEN a.total_hari IS NULL OR a.total_hari = 0 THEN NULL
                            ELSE ROUND(a.hadir / a.total_hari * 100, 0)
@@ -287,7 +287,7 @@ const getRekap = async (req, res) => {
                        ph.komunikasi,
                        ph.bina_diri
                 FROM siswa s
-                LEFT JOIN kelas k ON k.id = s.kelas_id
+                LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
                 LEFT JOIN (
                     SELECT ph.siswa_id,
                            ROUND(AVG(CASE WHEN ap.kode='kognitif' THEN ph.capaian END), 0) AS kognitif,
@@ -296,10 +296,10 @@ const getRekap = async (req, res) => {
                            ROUND(AVG(CASE WHEN ap.kode='komunikasi' THEN ph.capaian END), 0) AS komunikasi,
                            ROUND(AVG(CASE WHEN ap.kode='bina_diri' THEN ph.capaian END), 0) AS bina_diri
                     FROM perkembangan_harian ph
-                    JOIN aspek_perkembangan ap ON ap.id = ph.aspek_id
+                    JOIN aspek_perkembangan ap ON ap.aspek_id = ph.aspek_id
                     WHERE MONTH(ph.tanggal) = ? AND YEAR(ph.tanggal) = ?
                     GROUP BY ph.siswa_id
-                ) ph ON ph.siswa_id = s.id
+                ) ph ON ph.siswa_id = s.siswa_id
                 LEFT JOIN (
                     SELECT a.siswa_id,
                            SUM(CASE WHEN a.status='Hadir' THEN 1 ELSE 0 END) AS hadir,
@@ -307,7 +307,7 @@ const getRekap = async (req, res) => {
                     FROM absensi a
                     WHERE MONTH(a.tanggal) = ? AND YEAR(a.tanggal) = ?
                     GROUP BY a.siswa_id
-                ) a ON a.siswa_id = s.id
+                ) a ON a.siswa_id = s.siswa_id
                 ${where}
             ) base
             ORDER BY base.nama_kelas, base.nama
@@ -335,7 +335,7 @@ const getSiswa = async (req, res) => {
 
         let query = `
             SELECT
-                s.id,
+                s.siswa_id AS id,
                 s.nisn,
                 s.nama,
                 s.tgl_lahir,
@@ -352,7 +352,7 @@ const getSiswa = async (req, res) => {
                 k.nama_kelas,
                 ta.tahun_ajaran
             FROM siswa s
-            LEFT JOIN kelas k ON s.kelas_id = k.id
+            LEFT JOIN kelas k ON s.kelas_id = k.kelas_id
             LEFT JOIN tahun_ajaran ta ON k.tahun_ajaran_id = ta.id
             WHERE 1=1
         `;

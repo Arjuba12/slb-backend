@@ -275,11 +275,11 @@ router.post('/laporan/upload', auth, authorize('guru', 'admin', 'kepsek'), lapor
         }
 
         let judul = `Laporan ${tipe} ${periode}`;
-        const [[kelasInfo]] = await db.execute('SELECT nama_kelas FROM kelas WHERE id = ?', [kelas_id]);
+        const [[kelasInfo]] = await db.execute('SELECT nama_kelas FROM kelas WHERE kelas_id = ?', [kelas_id]);
         if (kelasInfo) judul += ` - ${kelasInfo.nama_kelas}`;
 
         const [[countInfo]] = await db.execute(
-            'SELECT COUNT(DISTINCT s.id) AS total_siswa, COUNT(DISTINCT s.kelas_id) AS total_kelas FROM siswa s WHERE s.is_aktif = 1 AND s.kelas_id = ?',
+            'SELECT COUNT(DISTINCT s.siswa_id) AS total_siswa, COUNT(DISTINCT s.kelas_id) AS total_kelas FROM siswa s WHERE s.is_aktif = 1 AND s.kelas_id = ?',
             [kelas_id]
         );
 
@@ -304,6 +304,7 @@ router.post('/laporan/upload', auth, authorize('guru', 'admin', 'kepsek'), lapor
     }
 });
 router.post('/laporan/generate', auth, authorize('admin', 'kepsek', 'guru'), dashCtrl.generateLaporan);
+router.delete('/laporan/:id', auth, authorize('admin'), dashCtrl.deleteLaporan);
 router.get('/laporan/kelas/:kelasId', auth, authorize('admin', 'kepsek', 'guru'), dashCtrl.getLaporanKelas);
 
 // ============================================================

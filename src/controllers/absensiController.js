@@ -7,10 +7,10 @@ const getByKelas = async (req, res) => {
         const kelasId = req.params.kelasId;
 
         let query = `
-            SELECT a.*, s.nama AS nama_siswa, u.nama AS dicatat_nama
+            SELECT a.*, a.absensi_id AS id, s.nama AS nama_siswa, u.nama AS dicatat_nama
             FROM absensi a
-            JOIN siswa s ON s.id = a.siswa_id
-            LEFT JOIN users u ON u.id = a.dicatat_oleh
+            JOIN siswa s ON s.siswa_id = a.siswa_id
+            LEFT JOIN users u ON u.user_id = a.dicatat_oleh
             WHERE a.kelas_id = ?
         `;
         const params = [kelasId];
@@ -78,7 +78,7 @@ const create = async (req, res) => {
         let saved = 0;
         for (const item of absensi_list) {
             const [existing] = await db.execute(
-                'SELECT id FROM absensi WHERE siswa_id = ? AND tanggal = ? LIMIT 1',
+                'SELECT absensi_id AS id FROM absensi WHERE siswa_id = ? AND tanggal = ? LIMIT 1',
                 [item.siswa_id, tanggal]
             );
 
@@ -86,7 +86,7 @@ const create = async (req, res) => {
                 await db.execute(`
                     UPDATE absensi
                     SET kelas_id = ?, status = ?, keterangan = ?, dicatat_oleh = ?
-                    WHERE id = ?
+                    WHERE absensi_id = ?
                 `, [kelas_id, item.status, item.keterangan || null, req.user.id, existing[0].id]);
             } else {
                 await db.execute(`
@@ -109,8 +109,8 @@ const create = async (req, res) => {
 
                 if (alphaCheck[0].cnt >= 3) {
                     // Kirim notifikasi ke kepsek (simpan sebagai pesan otomatis)
-                    const [siswaInfo] = await db.execute('SELECT nama FROM siswa WHERE id = ?', [item.siswa_id]);
-                    const [kepsek] = await db.execute("SELECT id FROM users WHERE role='kepsek' LIMIT 1");
+                    const [siswaInfo] = await db.execute('SELECT nama FROM siswa WHERE siswa_id = ?', [item.siswa_id]);
+                    const [kepsek] = await db.execute("SELECT user_id AS id FROM users WHERE role='kepsek' LIMIT 1");
                     if (kepsek.length && siswaInfo.length) {
                         await db.execute(`
                             INSERT INTO pesan (pengirim_id, penerima_id, siswa_id, subjek, isi)
@@ -135,15 +135,15 @@ const getRekapBulanan = async (req, res) => {
         const { kelas_id, bulan, tahun } = req.query;
 
         let query = `
-            SELECT s.id, s.nama, k.nama_kelas,
+            SELECT s.siswa_id AS id, s.nama, k.nama_kelas,
                    SUM(CASE WHEN a.status='Hadir' THEN 1 ELSE 0 END) AS hadir,
                    SUM(CASE WHEN a.status='Sakit' THEN 1 ELSE 0 END) AS sakit,
                    SUM(CASE WHEN a.status='Izin' THEN 1 ELSE 0 END) AS izin,
                    SUM(CASE WHEN a.status='Alpha' THEN 1 ELSE 0 END) AS alpha,
-                   COUNT(a.id) AS total_hari
+                   COUNT(a.absensi_id) AS total_hari
             FROM siswa s
-            JOIN kelas k ON k.id = s.kelas_id
-            LEFT JOIN absensi a ON a.siswa_id = s.id
+            JOIN kelas k ON k.kelas_id = s.kelas_id
+            LEFT JOIN absensi a ON a.siswa_id = s.siswa_id
                 AND MONTH(a.tanggal) = ? AND YEAR(a.tanggal) = ?
             WHERE s.is_aktif = 1
         `;
@@ -151,7 +151,7 @@ const getRekapBulanan = async (req, res) => {
 
         if (kelas_id) { query += ' AND s.kelas_id = ?'; params.push(kelas_id); }
 
-        query += ' GROUP BY s.id ORDER BY k.nama_kelas, s.nama';
+        query += ' GROUP BY s.siswa_id ORDER BY k.nama_kelas, s.nama';
         const [rows] = await db.execute(query, params);
         res.json({ success: true, data: rows });
     } catch (err) {

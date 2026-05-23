@@ -13,7 +13,7 @@ const auth = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         const [rows] = await db.execute(
-            'SELECT id, nama, email, role, is_aktif FROM users WHERE id = ?',
+            'SELECT user_id AS id, nama, email, role, is_aktif FROM users WHERE user_id = ?',
             [decoded.id]
         );
 

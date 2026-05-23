@@ -10,10 +10,10 @@ const getPrimaryWaliSiswa = async (userId) => {
                 k.nama_kelas,
                 ws.hubungan
          FROM wali_siswa ws
-         JOIN siswa s ON s.id = ws.siswa_id
-         LEFT JOIN kelas k ON k.id = s.kelas_id
+         JOIN siswa s ON s.siswa_id = ws.siswa_id
+         LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
          WHERE ws.user_id = ? AND s.is_aktif = 1
-         ORDER BY ws.id
+         ORDER BY ws.wali_id
          LIMIT 1`,
         [userId]
     );
@@ -30,7 +30,7 @@ const login = async (req, res) => {
         }
 
         const [rows] = await db.execute(
-            'SELECT * FROM users WHERE email = ? AND is_aktif = 1',
+            'SELECT users.*, user_id AS id FROM users WHERE email = ? AND is_aktif = 1',
             [email]
         );
 
@@ -47,7 +47,7 @@ const login = async (req, res) => {
         // Update last login
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         await db.execute(
-            'UPDATE users SET last_login = NOW(), login_ip = ? WHERE id = ?',
+            'UPDATE users SET last_login = NOW(), login_ip = ? WHERE user_id = ?',
             [ip, user.id]
         );
 
@@ -94,11 +94,11 @@ const login = async (req, res) => {
 const getMe = async (req, res) => {
     try {
         const [rows] = await db.execute(
-            `SELECT u.id, u.nama, u.email, u.role, u.no_hp, u.foto, u.last_login,
-             g.id AS guru_id, g.nip, g.spesialisasi
+            `SELECT u.user_id AS id, u.nama, u.email, u.role, u.no_hp, u.foto, u.last_login,
+             g.guru_id AS guru_id, g.nip, g.spesialisasi
              FROM users u
-             LEFT JOIN guru g ON g.user_id = u.id
-             WHERE u.id = ?`,
+             LEFT JOIN guru g ON g.user_id = u.user_id
+             WHERE u.user_id = ?`,
             [req.user.id]
         );
         const data = rows[0];
@@ -128,7 +128,7 @@ const changePassword = async (req, res) => {
         if (password_baru.length < 6) {
             return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter' });
         }
-        const [rows] = await db.execute('SELECT password FROM users WHERE id = ?', [req.user.id]);
+        const [rows] = await db.execute('SELECT password FROM users WHERE user_id = ?', [req.user.id]);
         if (!rows.length) {
             return res.status(404).json({ success: false, message: 'User tidak ditemukan' });
         }
@@ -137,7 +137,7 @@ const changePassword = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Password lama salah' });
         }
         const hashed = await bcrypt.hash(password_baru, 10);
-        await db.execute('UPDATE users SET password = ? WHERE id = ?', [hashed, req.user.id]);
+        await db.execute('UPDATE users SET password = ? WHERE user_id = ?', [hashed, req.user.id]);
         res.json({ success: true, message: 'Password berhasil diubah' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error' });
@@ -154,7 +154,7 @@ const updateProfile = async (req, res) => {
         }
 
         const [duplicateEmail] = await db.execute(
-            'SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1',
+            'SELECT user_id AS id FROM users WHERE email = ? AND user_id != ? LIMIT 1',
             [email, req.user.id]
         );
 
@@ -163,7 +163,7 @@ const updateProfile = async (req, res) => {
         }
 
         await db.execute(
-            'UPDATE users SET nama = ?, email = ?, no_hp = ? WHERE id = ?',
+            'UPDATE users SET nama = ?, email = ?, no_hp = ? WHERE user_id = ?',
             [nama, email, no_hp || null, req.user.id]
         );
 
@@ -175,11 +175,11 @@ const updateProfile = async (req, res) => {
         }
 
         const [rows] = await db.execute(
-            `SELECT u.id, u.nama, u.email, u.role, u.no_hp, u.foto, u.last_login,
-             g.id AS guru_id, g.nip, g.spesialisasi
+            `SELECT u.user_id AS id, u.nama, u.email, u.role, u.no_hp, u.foto, u.last_login,
+             g.guru_id AS guru_id, g.nip, g.spesialisasi
              FROM users u
-             LEFT JOIN guru g ON g.user_id = u.id
-             WHERE u.id = ?`,
+             LEFT JOIN guru g ON g.user_id = u.user_id
+             WHERE u.user_id = ?`,
             [req.user.id]
         );
 

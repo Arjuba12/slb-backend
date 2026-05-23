@@ -27,14 +27,14 @@ const ensureKegiatanBannerColumn = async () => {
 const getDashboardAdmin = async (req, res) => {
     try {
         const [[totalSiswa]] = await db.execute("SELECT COUNT(*) AS total FROM siswa WHERE is_aktif = 1");
-        const [[totalGuru]] = await db.execute("SELECT COUNT(*) AS total FROM guru g JOIN users u ON u.id = g.user_id WHERE u.is_aktif = 1");
+        const [[totalGuru]] = await db.execute("SELECT COUNT(*) AS total FROM guru g JOIN users u ON u.user_id = g.user_id WHERE u.is_aktif = 1");
         const [[totalTerapis]] = await db.execute("SELECT COUNT(*) AS total FROM guru WHERE spesialisasi = 'Terapis'");
         const [[totalKelas]] = await db.execute("SELECT COUNT(*) AS total FROM kelas WHERE is_aktif = 1");
 
         const [aktivitas] = await db.execute(`
             SELECT la.*, u.nama AS nama_user, u.role
             FROM log_aktivitas la
-            LEFT JOIN users u ON u.id = la.user_id
+            LEFT JOIN users u ON u.user_id = la.user_id
             ORDER BY la.created_at DESC LIMIT 20
         `);
 
@@ -63,7 +63,7 @@ const getDashboardAdmin = async (req, res) => {
 const getDashboardKepsek = async (req, res) => {
     try {
         const [[totalSiswa]] = await db.execute("SELECT COUNT(*) AS total FROM siswa WHERE is_aktif = 1");
-        const [[totalGuru]] = await db.execute("SELECT COUNT(*) AS g, SUM(spesialisasi='Terapis') AS t FROM guru g JOIN users u ON u.id = g.user_id WHERE u.is_aktif = 1");
+        const [[totalGuru]] = await db.execute("SELECT COUNT(*) AS g, SUM(spesialisasi='Terapis') AS t FROM guru g JOIN users u ON u.user_id = g.user_id WHERE u.is_aktif = 1");
 
         // Kehadiran rata-rata bulan ini
         const [[kehadiran]] = await db.execute(`
@@ -86,12 +86,12 @@ const getDashboardKepsek = async (req, res) => {
                 SUM(CASE WHEN avg_cap BETWEEN 60 AND 74 THEN 1 ELSE 0 END) AS cukup_berkembang,
                 SUM(CASE WHEN avg_cap < 60 OR avg_cap IS NULL THEN 1 ELSE 0 END) AS perlu_intervensi
             FROM (
-                SELECT s.id, ROUND(AVG(ph.capaian), 0) AS avg_cap
+                SELECT s.siswa_id AS id, ROUND(AVG(ph.capaian), 0) AS avg_cap
                 FROM siswa s
-                LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.id
+                LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.siswa_id
                     AND ph.tanggal >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                 WHERE s.is_aktif = 1
-                GROUP BY s.id
+                GROUP BY s.siswa_id
             ) sub
         `);
 
@@ -99,11 +99,11 @@ const getDashboardKepsek = async (req, res) => {
         const [capaianKelas] = await db.execute(`
             SELECT k.nama_kelas, ROUND(AVG(ph.capaian), 0) AS rata_rata
             FROM kelas k
-            JOIN siswa s ON s.kelas_id = k.id AND s.is_aktif = 1
-            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.id
+            JOIN siswa s ON s.kelas_id = k.kelas_id AND s.is_aktif = 1
+            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.siswa_id
                 AND ph.tanggal >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
             WHERE k.is_aktif = 1
-            GROUP BY k.id
+            GROUP BY k.kelas_id
             ORDER BY k.nama_kelas
         `);
 
@@ -128,37 +128,37 @@ const getDashboardGuru = async (req, res) => {
     try {
         await ensureKegiatanBannerColumn();
 
-        const [guruRows] = await db.execute('SELECT id FROM guru WHERE user_id = ?', [req.user.id]);
+        const [guruRows] = await db.execute('SELECT guru_id AS id FROM guru WHERE user_id = ?', [req.user.id]);
         if (!guruRows.length) return res.status(404).json({ success: false, message: 'Data guru tidak ditemukan' });
         const guruId = guruRows[0].id;
 
         // Kelas saya
         const [kelas] = await db.execute(`
-            SELECT k.id, k.nama_kelas, kg.is_wali_kelas,
-                   COUNT(DISTINCT s.id) AS jml_siswa,
+            SELECT k.kelas_id AS id, k.nama_kelas, kg.is_wali_kelas,
+                   COUNT(DISTINCT s.siswa_id) AS jml_siswa,
                    COUNT(DISTINCT ph.siswa_id) AS input_hari_ini
             FROM kelas_guru kg
-            JOIN kelas k ON k.id = kg.kelas_id
-            LEFT JOIN siswa s ON s.kelas_id = k.id AND s.is_aktif = 1
-            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.id 
+            JOIN kelas k ON k.kelas_id = kg.kelas_id
+            LEFT JOIN siswa s ON s.kelas_id = k.kelas_id AND s.is_aktif = 1
+            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.siswa_id 
                 AND ph.guru_id = ? AND ph.tanggal = CURDATE()
             WHERE kg.guru_id = ? AND k.is_aktif = 1
-            GROUP BY k.id, k.nama_kelas, kg.is_wali_kelas
+            GROUP BY k.kelas_id, k.nama_kelas, kg.is_wali_kelas
         `, [guruId, guruId]);
 
         // Siswa perlu perhatian
         const [siswaPerlu] = await db.execute(`
-            SELECT s.id, s.nisn, s.nama, s.kebutuhan_khusus, s.kelas_id, k.nama_kelas,
+            SELECT s.siswa_id AS id, s.nisn, s.nama, s.kebutuhan_khusus, s.kelas_id, k.nama_kelas,
                    ROUND(AVG(ph.capaian), 0) AS capaian_rata,
-                   (SELECT COUNT(*) FROM absensi a WHERE a.siswa_id = s.id 
+                   (SELECT COUNT(*) FROM absensi a WHERE a.siswa_id = s.siswa_id 
                     AND a.status='Hadir' AND MONTH(a.tanggal) = MONTH(CURDATE())) AS hadir
             FROM siswa s
-            JOIN kelas k ON k.id = s.kelas_id
-            JOIN kelas_guru kg ON kg.kelas_id = k.id AND kg.guru_id = ?
-            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.id
+            JOIN kelas k ON k.kelas_id = s.kelas_id
+            JOIN kelas_guru kg ON kg.kelas_id = k.kelas_id AND kg.guru_id = ?
+            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.siswa_id
                 AND ph.tanggal >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
             WHERE s.is_aktif = 1
-            GROUP BY s.id
+            GROUP BY s.siswa_id
             HAVING capaian_rata < 60 OR capaian_rata IS NULL
             LIMIT 5
         `, [guruId]);
@@ -172,12 +172,12 @@ const getDashboardGuru = async (req, res) => {
         // Progress laporan bulan ini (siswa yang belum diisi)
         const [[progressInput]] = await db.execute(`
             SELECT 
-                COUNT(DISTINCT s.id) AS total_siswa,
+                COUNT(DISTINCT s.siswa_id) AS total_siswa,
                 COUNT(DISTINCT ph.siswa_id) AS sudah_input
             FROM siswa s
-            JOIN kelas k ON k.id = s.kelas_id
-            JOIN kelas_guru kg ON kg.kelas_id = k.id AND kg.guru_id = ?
-            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.id AND ph.tanggal = CURDATE()
+            JOIN kelas k ON k.kelas_id = s.kelas_id
+            JOIN kelas_guru kg ON kg.kelas_id = k.kelas_id AND kg.guru_id = ?
+            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.siswa_id AND ph.tanggal = CURDATE()
             WHERE s.is_aktif = 1
         `, [guruId]);
 
@@ -195,7 +195,7 @@ const getDashboardGuru = async (req, res) => {
                    pg.isi AS deskripsi,
                    pg.created_at AS tanggal
             FROM pengumuman pg
-            LEFT JOIN pengumuman_read pr ON pr.pengumuman_id = pg.id AND pr.user_id = ?
+            LEFT JOIN pengumuman_read pr ON pr.pengumuman_id = pg.pengumuman_id AND pr.user_id = ?
             WHERE pg.status = 'Terkirim'
               AND pg.target_role IN ('semua', 'guru')
               AND pr.id IS NULL
@@ -233,7 +233,7 @@ const getDashboardGuru = async (req, res) => {
         }
 
         const [kegiatan] = await db.execute(`
-            SELECT id, judul, deskripsi, tanggal, waktu_mulai, waktu_selesai,
+            SELECT kegiatan_id AS id, judul, deskripsi, tanggal, waktu_mulai, waktu_selesai,
                    lokasi, tipe, banner_url
             FROM kegiatan
             WHERE tanggal >= CURDATE()
@@ -264,25 +264,25 @@ const getDashboardWali = async (req, res) => {
 
         // Anak wali
         const [anak] = await db.execute(`
-            SELECT s.id, s.nama, s.nisn, s.foto, s.kebutuhan_khusus, s.kelas_id,
+            SELECT s.siswa_id AS id, s.nama, s.nisn, s.foto, s.kebutuhan_khusus, s.kelas_id,
                    k.nama_kelas, ws.hubungan,
                    ROUND(AVG(ph.capaian), 0) AS capaian_rata,
-                   (SELECT COUNT(*) FROM absensi a WHERE a.siswa_id = s.id 
+                   (SELECT COUNT(*) FROM absensi a WHERE a.siswa_id = s.siswa_id 
                     AND a.status='Hadir' AND MONTH(a.tanggal)=MONTH(CURDATE())) AS hadir_bulan,
-                   (SELECT COUNT(*) FROM absensi a WHERE a.siswa_id = s.id 
+                   (SELECT COUNT(*) FROM absensi a WHERE a.siswa_id = s.siswa_id 
                     AND MONTH(a.tanggal)=MONTH(CURDATE())) AS total_hari,
-                   (SELECT a.status FROM absensi a WHERE a.siswa_id = s.id
+                   (SELECT a.status FROM absensi a WHERE a.siswa_id = s.siswa_id
                     AND a.tanggal = CURDATE() LIMIT 1) AS kehadiran_hari_ini,
                    CASE WHEN ROUND(AVG(ph.capaian),0) >= 75 THEN 'Berkembang'
                         WHEN ROUND(AVG(ph.capaian),0) >= 60 THEN 'Cukup Berkembang'
                         ELSE 'Perlu Intervensi' END AS status
             FROM wali_siswa ws
-            JOIN siswa s ON s.id = ws.siswa_id
-            LEFT JOIN kelas k ON k.id = s.kelas_id
-            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.id
+            JOIN siswa s ON s.siswa_id = ws.siswa_id
+            LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
+            LEFT JOIN perkembangan_harian ph ON ph.siswa_id = s.siswa_id
                 AND ph.tanggal >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
             WHERE ws.user_id = ?
-            GROUP BY s.id, s.nama, s.nisn, s.foto, s.kebutuhan_khusus, s.kelas_id,
+            GROUP BY s.siswa_id, s.nama, s.nisn, s.foto, s.kebutuhan_khusus, s.kelas_id,
                      k.nama_kelas, ws.hubungan
         `, [req.user.id]);
 
@@ -294,9 +294,9 @@ const getDashboardWali = async (req, res) => {
         const [catatan] = await db.execute(`
             SELECT ph.catatan, ph.tanggal, ap.nama AS aspek, u.nama AS nama_guru
             FROM perkembangan_harian ph
-            JOIN aspek_perkembangan ap ON ap.id = ph.aspek_id
-            JOIN guru g ON g.id = ph.guru_id
-            JOIN users u ON u.id = g.user_id
+            JOIN aspek_perkembangan ap ON ap.aspek_id = ph.aspek_id
+            JOIN guru g ON g.guru_id = ph.guru_id
+            JOIN users u ON u.user_id = g.user_id
             WHERE ph.siswa_id = ? AND ph.catatan IS NOT NULL AND ph.catatan != ''
             ORDER BY ph.tanggal DESC LIMIT 5
         `, [siswaId]);
@@ -321,7 +321,7 @@ const getDashboardWali = async (req, res) => {
                        'pengumuman' AS tipe
                 FROM pengumuman pg
                 LEFT JOIN pengumuman_read pr
-                  ON pr.pengumuman_id = pg.id
+                  ON pr.pengumuman_id = pg.pengumuman_id
                  AND pr.user_id = ?
                 WHERE pg.status = 'Terkirim'
                   AND (pg.target_role = 'semua' OR pg.target_role = 'wali')
@@ -343,7 +343,7 @@ const getDashboardWali = async (req, res) => {
         `, [req.user.id, req.user.id, anak[0].kelas_id]);
 
         const [kegiatan] = await db.execute(`
-            SELECT id, judul, deskripsi, tanggal, waktu_mulai, waktu_selesai,
+            SELECT kegiatan_id AS id, judul, deskripsi, tanggal, waktu_mulai, waktu_selesai,
                    lokasi, tipe, banner_url
             FROM kegiatan
             WHERE tanggal >= CURDATE()
@@ -369,22 +369,25 @@ const getLaporan = async (req, res) => {
     try {
         const { tipe, kelas_id } = req.query;
         let query = `
-            SELECT l.*, u.nama AS nama_pembuat, k.nama_kelas
+            SELECT l.*, l.laporan_id AS id, u.nama AS nama_pembuat, u.role AS role_pembuat, k.nama_kelas
             FROM laporan l
-            JOIN users u ON u.id = l.dibuat_oleh
-            LEFT JOIN kelas k ON k.id = l.kelas_id
+            JOIN users u ON u.user_id = l.dibuat_oleh
+            LEFT JOIN kelas k ON k.kelas_id = l.kelas_id
             WHERE 1=1
         `;
         const params = [];
         if (tipe) { query += ' AND l.tipe = ?'; params.push(tipe); }
         if (kelas_id) { query += ' AND l.kelas_id = ?'; params.push(kelas_id); }
+        if (req.user.role === 'admin') {
+            query += " AND u.role IN ('guru', 'kepsek')";
+        }
         if (req.user.role === 'wali') {
             query += `
                 AND l.file_path IS NOT NULL
                 AND l.kelas_id IN (
                     SELECT s.kelas_id
                     FROM wali_siswa ws
-                    JOIN siswa s ON s.id = ws.siswa_id
+                    JOIN siswa s ON s.siswa_id = ws.siswa_id
                     WHERE ws.user_id = ?
                 )
             `;
@@ -406,12 +409,12 @@ const generateLaporan = async (req, res) => {
 
         let judul = `Laporan ${tipe} ${periode}`;
         if (kelas_id) {
-            const [[kelasInfo]] = await db.execute('SELECT nama_kelas FROM kelas WHERE id = ?', [kelas_id]);
+            const [[kelasInfo]] = await db.execute('SELECT nama_kelas FROM kelas WHERE kelas_id = ?', [kelas_id]);
             if (kelasInfo) judul += ` - ${kelasInfo.nama_kelas}`;
         }
 
         const [[countInfo]] = await db.execute(
-            'SELECT COUNT(DISTINCT s.id) AS total_siswa, COUNT(DISTINCT s.kelas_id) AS total_kelas FROM siswa s WHERE s.is_aktif = 1' + (kelas_id ? ' AND s.kelas_id = ?' : ''),
+            'SELECT COUNT(DISTINCT s.siswa_id) AS total_siswa, COUNT(DISTINCT s.kelas_id) AS total_kelas FROM siswa s WHERE s.is_aktif = 1' + (kelas_id ? ' AND s.kelas_id = ?' : ''),
             kelas_id ? [kelas_id] : []
         );
 
@@ -431,6 +434,29 @@ const generateLaporan = async (req, res) => {
     }
 };
 
+// DELETE /api/laporan/:id - Admin hapus laporan
+const deleteLaporan = async (req, res) => {
+    try {
+        const [result] = await db.execute(
+            'DELETE FROM laporan WHERE laporan_id = ?',
+            [req.params.id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ success: false, message: 'Laporan tidak ditemukan' });
+        }
+
+        await db.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Hapus Laporan', `Laporan ID: ${req.params.id}`]
+        );
+
+        res.json({ success: true, message: 'Laporan berhasil dihapus' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // GET /api/laporan/kelas/:kelasId - Laporan detail kelas untuk guru
 const getLaporanKelas = async (req, res) => {
     try {
@@ -440,12 +466,12 @@ const getLaporanKelas = async (req, res) => {
         const y = tahun || new Date().getFullYear();
 
         const [[kelasInfo]] = await db.execute(
-            'SELECT k.*, t.nama AS tingkat FROM kelas k JOIN tingkat t ON t.id = k.tingkat_id WHERE k.id = ?',
+            'SELECT k.*, k.kelas_id AS id, t.nama AS tingkat FROM kelas k JOIN tingkat t ON t.tingkat_id = k.tingkat_id WHERE k.kelas_id = ?',
             [kelasId]
         );
 
         const [siswaData] = await db.execute(`
-            SELECT s.id, s.nama,
+            SELECT s.siswa_id AS id, s.nama,
                    ph.kognitif,
                    ph.sosial,
                    ph.motorik,
@@ -464,10 +490,10 @@ const getLaporanKelas = async (req, res) => {
                        ROUND(AVG(CASE WHEN ap.kode='komunikasi' THEN ph.capaian END), 0) AS komunikasi,
                        ROUND(AVG(CASE WHEN ap.kode='bina_diri' THEN ph.capaian END), 0) AS bina_diri
                 FROM perkembangan_harian ph
-                JOIN aspek_perkembangan ap ON ap.id = ph.aspek_id
+                JOIN aspek_perkembangan ap ON ap.aspek_id = ph.aspek_id
                 WHERE MONTH(ph.tanggal) = ? AND YEAR(ph.tanggal) = ?
                 GROUP BY ph.siswa_id
-            ) ph ON ph.siswa_id = s.id
+            ) ph ON ph.siswa_id = s.siswa_id
             LEFT JOIN (
                 SELECT a.siswa_id,
                        SUM(CASE WHEN a.status='Hadir' THEN 1 ELSE 0 END) AS hadir,
@@ -477,7 +503,7 @@ const getLaporanKelas = async (req, res) => {
                 FROM absensi a
                 WHERE MONTH(a.tanggal) = ? AND YEAR(a.tanggal) = ?
                 GROUP BY a.siswa_id
-            ) a ON a.siswa_id = s.id
+            ) a ON a.siswa_id = s.siswa_id
             WHERE s.kelas_id = ? AND s.is_aktif = 1
             ORDER BY s.nama
         `, [m, y, m, y, kelasId]);
@@ -513,5 +539,5 @@ const getLaporanKelas = async (req, res) => {
 
 module.exports = {
     getDashboardAdmin, getDashboardKepsek, getDashboardGuru, getDashboardWali,
-    getLaporan, generateLaporan, getLaporanKelas
+    getLaporan, generateLaporan, deleteLaporan, getLaporanKelas
 };

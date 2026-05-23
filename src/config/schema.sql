@@ -6,7 +6,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
@@ -21,30 +21,30 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS tingkat (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    tingkat_id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(10) NOT NULL,
     keterangan VARCHAR(100)
 );
 
 CREATE TABLE IF NOT EXISTS kelas (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    kelas_id INT AUTO_INCREMENT PRIMARY KEY,
     nama_kelas VARCHAR(20) NOT NULL,
     tingkat_id INT NOT NULL,
     tahun_ajaran VARCHAR(10) NOT NULL,
     kapasitas INT DEFAULT 10,
     is_aktif BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (tingkat_id) REFERENCES tingkat(id)
+    FOREIGN KEY (tingkat_id) REFERENCES tingkat(tingkat_id)
 );
 
 CREATE TABLE IF NOT EXISTS guru (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    guru_id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL UNIQUE,
     nip VARCHAR(30),
     spesialisasi ENUM('Guru Kelas', 'Terapis', 'Guru Mapel') DEFAULT 'Guru Kelas',
     tgl_bergabung DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS kelas_guru (
@@ -52,13 +52,13 @@ CREATE TABLE IF NOT EXISTS kelas_guru (
     kelas_id INT NOT NULL,
     guru_id INT NOT NULL,
     is_wali_kelas BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (kelas_id) REFERENCES kelas(id) ON DELETE CASCADE,
-    FOREIGN KEY (guru_id) REFERENCES guru(id) ON DELETE CASCADE,
+    FOREIGN KEY (kelas_id) REFERENCES kelas(kelas_id) ON DELETE CASCADE,
+    FOREIGN KEY (guru_id) REFERENCES guru(guru_id) ON DELETE CASCADE,
     UNIQUE KEY uk_kelas_guru (kelas_id, guru_id)
 );
 
 CREATE TABLE IF NOT EXISTS siswa (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    siswa_id INT AUTO_INCREMENT PRIMARY KEY,
     nisn VARCHAR(20) UNIQUE NOT NULL,
     nama VARCHAR(100) NOT NULL,
     tgl_lahir DATE NOT NULL,
@@ -71,22 +71,22 @@ CREATE TABLE IF NOT EXISTS siswa (
     is_aktif BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (kelas_id) REFERENCES kelas(id) ON DELETE SET NULL
+    FOREIGN KEY (kelas_id) REFERENCES kelas(kelas_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS wali_siswa (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    wali_id INT AUTO_INCREMENT PRIMARY KEY,
     siswa_id INT NOT NULL,
     user_id INT NOT NULL,
     hubungan ENUM('Ayah', 'Ibu', 'Wali') DEFAULT 'Wali',
     is_primer BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (siswa_id) REFERENCES siswa(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (siswa_id) REFERENCES siswa(siswa_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS aspek_perkembangan (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    aspek_id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(50) NOT NULL,
     kode VARCHAR(20) UNIQUE NOT NULL,
     deskripsi TEXT,
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS aspek_perkembangan (
 );
 
 CREATE TABLE IF NOT EXISTS perkembangan_harian (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    perkembangan_id INT AUTO_INCREMENT PRIMARY KEY,
     siswa_id INT NOT NULL,
     guru_id INT NOT NULL,
     tanggal DATE NOT NULL,
@@ -104,14 +104,14 @@ CREATE TABLE IF NOT EXISTS perkembangan_harian (
     catatan TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (siswa_id) REFERENCES siswa(id) ON DELETE CASCADE,
-    FOREIGN KEY (guru_id) REFERENCES guru(id),
-    FOREIGN KEY (aspek_id) REFERENCES aspek_perkembangan(id),
+    FOREIGN KEY (siswa_id) REFERENCES siswa(siswa_id) ON DELETE CASCADE,
+    FOREIGN KEY (guru_id) REFERENCES guru(guru_id),
+    FOREIGN KEY (aspek_id) REFERENCES aspek_perkembangan(aspek_id),
     UNIQUE KEY uk_perk_harian (siswa_id, tanggal, aspek_id)
 );
 
 CREATE TABLE IF NOT EXISTS absensi (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    absensi_id INT AUTO_INCREMENT PRIMARY KEY,
     siswa_id INT NOT NULL,
     kelas_id INT NOT NULL,
     tanggal DATE NOT NULL,
@@ -119,14 +119,14 @@ CREATE TABLE IF NOT EXISTS absensi (
     keterangan TEXT,
     dicatat_oleh INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (siswa_id) REFERENCES siswa(id) ON DELETE CASCADE,
-    FOREIGN KEY (kelas_id) REFERENCES kelas(id),
-    FOREIGN KEY (dicatat_oleh) REFERENCES users(id),
+    FOREIGN KEY (siswa_id) REFERENCES siswa(siswa_id) ON DELETE CASCADE,
+    FOREIGN KEY (kelas_id) REFERENCES kelas(kelas_id),
+    FOREIGN KEY (dicatat_oleh) REFERENCES users(user_id),
     UNIQUE KEY uk_absensi (siswa_id, tanggal)
 );
 
 CREATE TABLE IF NOT EXISTS ppi (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    ppi_id INT AUTO_INCREMENT PRIMARY KEY,
     siswa_id INT NOT NULL,
     guru_id INT NOT NULL,
     semester VARCHAR(20) NOT NULL,
@@ -141,8 +141,8 @@ CREATE TABLE IF NOT EXISTS ppi (
     status ENUM('Aktif', 'Selesai', 'Draft') DEFAULT 'Draft',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (siswa_id) REFERENCES siswa(id) ON DELETE CASCADE,
-    FOREIGN KEY (guru_id) REFERENCES guru(id)
+    FOREIGN KEY (siswa_id) REFERENCES siswa(siswa_id) ON DELETE CASCADE,
+    FOREIGN KEY (guru_id) REFERENCES guru(guru_id)
 );
 
 CREATE TABLE IF NOT EXISTS ppi_detail (
@@ -154,12 +154,12 @@ CREATE TABLE IF NOT EXISTS ppi_detail (
     status ENUM('Belum', 'Berjalan', 'Tercapai') DEFAULT 'Belum',
     catatan TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (ppi_id) REFERENCES ppi(id) ON DELETE CASCADE,
-    FOREIGN KEY (aspek_id) REFERENCES aspek_perkembangan(id)
+    FOREIGN KEY (ppi_id) REFERENCES ppi(ppi_id) ON DELETE CASCADE,
+    FOREIGN KEY (aspek_id) REFERENCES aspek_perkembangan(aspek_id)
 );
 
 CREATE TABLE IF NOT EXISTS laporan (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    laporan_id INT AUTO_INCREMENT PRIMARY KEY,
     judul VARCHAR(200) NOT NULL,
     tipe ENUM('Bulanan', 'Semester', 'Tahunan', 'Kelas') NOT NULL,
     periode VARCHAR(50) NOT NULL,
@@ -170,12 +170,12 @@ CREATE TABLE IF NOT EXISTS laporan (
     total_kelas INT,
     status ENUM('Draft', 'Final') DEFAULT 'Final',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (kelas_id) REFERENCES kelas(id) ON DELETE SET NULL,
-    FOREIGN KEY (dibuat_oleh) REFERENCES users(id)
+    FOREIGN KEY (kelas_id) REFERENCES kelas(kelas_id) ON DELETE SET NULL,
+    FOREIGN KEY (dibuat_oleh) REFERENCES users(user_id)
 );
 
 CREATE TABLE IF NOT EXISTS pesan (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    pesan_id INT AUTO_INCREMENT PRIMARY KEY,
     pengirim_id INT NOT NULL,
     penerima_id INT NOT NULL,
     siswa_id INT,
@@ -184,13 +184,13 @@ CREATE TABLE IF NOT EXISTS pesan (
     is_dibaca BOOLEAN DEFAULT FALSE,
     dibaca_pada DATETIME,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pengirim_id) REFERENCES users(id),
-    FOREIGN KEY (penerima_id) REFERENCES users(id),
-    FOREIGN KEY (siswa_id) REFERENCES siswa(id) ON DELETE SET NULL
+    FOREIGN KEY (pengirim_id) REFERENCES users(user_id),
+    FOREIGN KEY (penerima_id) REFERENCES users(user_id),
+    FOREIGN KEY (siswa_id) REFERENCES siswa(siswa_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS pengumuman (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    pengumuman_id INT AUTO_INCREMENT PRIMARY KEY,
     pengirim_id INT NOT NULL,
     judul VARCHAR(200) NOT NULL,
     isi TEXT NOT NULL,
@@ -198,8 +198,8 @@ CREATE TABLE IF NOT EXISTS pengumuman (
     kelas_id INT,
     status ENUM('Draft', 'Terkirim') DEFAULT 'Terkirim',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pengirim_id) REFERENCES users(id),
-    FOREIGN KEY (kelas_id) REFERENCES kelas(id) ON DELETE SET NULL
+    FOREIGN KEY (pengirim_id) REFERENCES users(user_id),
+    FOREIGN KEY (kelas_id) REFERENCES kelas(kelas_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS pengumuman_read (
@@ -207,8 +207,8 @@ CREATE TABLE IF NOT EXISTS pengumuman_read (
     pengumuman_id INT NOT NULL,
     user_id INT NOT NULL,
     dibaca_pada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (pengumuman_id) REFERENCES pengumuman(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (pengumuman_id) REFERENCES pengumuman(pengumuman_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     UNIQUE KEY uk_pengumuman_read (pengumuman_id, user_id)
 );
 
@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS log_aktivitas (
     detail TEXT,
     ip_address VARCHAR(45),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS pengaturan (
@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS pengaturan (
 );
 
 CREATE TABLE IF NOT EXISTS kegiatan (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    kegiatan_id INT AUTO_INCREMENT PRIMARY KEY,
     judul VARCHAR(200) NOT NULL,
     deskripsi TEXT,
     tanggal DATE NOT NULL,
@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS kegiatan (
     tipe ENUM('Konsultasi', 'Acara Sekolah', 'Pembagian Rapor', 'Lainnya') DEFAULT 'Lainnya',
     dibuat_oleh INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (dibuat_oleh) REFERENCES users(id)
+    FOREIGN KEY (dibuat_oleh) REFERENCES users(user_id)
 );
 
 SET FOREIGN_KEY_CHECKS = 1;

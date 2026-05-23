@@ -5,23 +5,23 @@ const getAll = async (req, res) => {
     try {
         const { tahun_ajaran, is_aktif } = req.query;
         let query = `
-            SELECT k.id, k.nama_kelas, k.tingkat_id, k.tahun_ajaran, k.kapasitas, k.is_aktif,
+            SELECT k.kelas_id AS id, k.nama_kelas, k.tingkat_id, k.tahun_ajaran, k.kapasitas, k.is_aktif,
                    t.nama AS tingkat_nama,
-                   COUNT(DISTINCT s.id) AS jml_siswa,
+                   COUNT(DISTINCT s.siswa_id) AS jml_siswa,
                    ANY_VALUE(u.nama) AS nama_wali_kelas,
-                   ANY_VALUE(g.id) AS guru_id
+                   ANY_VALUE(g.guru_id) AS guru_id
             FROM kelas k
-            JOIN tingkat t ON t.id = k.tingkat_id
-            LEFT JOIN siswa s ON s.kelas_id = k.id AND s.is_aktif = 1
-            LEFT JOIN kelas_guru kg ON kg.kelas_id = k.id AND kg.is_wali_kelas = 1
-            LEFT JOIN guru g ON g.id = kg.guru_id
-            LEFT JOIN users u ON u.id = g.user_id
+            JOIN tingkat t ON t.tingkat_id = k.tingkat_id
+            LEFT JOIN siswa s ON s.kelas_id = k.kelas_id AND s.is_aktif = 1
+            LEFT JOIN kelas_guru kg ON kg.kelas_id = k.kelas_id AND kg.is_wali_kelas = 1
+            LEFT JOIN guru g ON g.guru_id = kg.guru_id
+            LEFT JOIN users u ON u.user_id = g.user_id
             WHERE 1=1
         `;
         const params = [];
         if (tahun_ajaran) { query += ' AND k.tahun_ajaran = ?'; params.push(tahun_ajaran); }
         if (is_aktif !== undefined) { query += ' AND k.is_aktif = ?'; params.push(is_aktif); }
-        query += ' GROUP BY k.id, t.nama ORDER BY k.nama_kelas';
+        query += ' GROUP BY k.kelas_id, t.nama ORDER BY k.nama_kelas';
 
         const [rows] = await db.execute(query, params);
         res.json({ success: true, data: rows });
@@ -35,23 +35,23 @@ const getAll = async (req, res) => {
 const getById = async (req, res) => {
     try {
         const [rows] = await db.execute(`
-            SELECT k.*, t.nama AS tingkat_nama
-            FROM kelas k JOIN tingkat t ON t.id = k.tingkat_id
-            WHERE k.id = ?
+            SELECT k.*, k.kelas_id AS id, t.nama AS tingkat_nama
+            FROM kelas k JOIN tingkat t ON t.tingkat_id = k.tingkat_id
+            WHERE k.kelas_id = ?
         `, [req.params.id]);
 
         if (!rows.length) return res.status(404).json({ success: false, message: 'Kelas tidak ditemukan' });
 
         const [siswa] = await db.execute(
-            'SELECT id, nama, nisn, kebutuhan_khusus, foto FROM siswa WHERE kelas_id = ? AND is_aktif = 1 ORDER BY nama',
+            'SELECT siswa_id AS id, nama, nisn, kebutuhan_khusus, foto FROM siswa WHERE kelas_id = ? AND is_aktif = 1 ORDER BY nama',
             [req.params.id]
         );
 
         const [guru] = await db.execute(`
-            SELECT g.id, u.nama, u.email, g.spesialisasi, kg.is_wali_kelas
+            SELECT g.guru_id AS id, u.nama, u.email, g.spesialisasi, kg.is_wali_kelas
             FROM kelas_guru kg
-            JOIN guru g ON g.id = kg.guru_id
-            JOIN users u ON u.id = g.user_id
+            JOIN guru g ON g.guru_id = kg.guru_id
+            JOIN users u ON u.user_id = g.user_id
             WHERE kg.kelas_id = ?
         `, [req.params.id]);
 
@@ -80,7 +80,7 @@ const update = async (req, res) => {
     try {
         const { nama_kelas, kapasitas, is_aktif } = req.body;
         await db.execute(
-            'UPDATE kelas SET nama_kelas=?, kapasitas=?, is_aktif=? WHERE id=?',
+            'UPDATE kelas SET nama_kelas=?, kapasitas=?, is_aktif=? WHERE kelas_id=?',
             [nama_kelas, kapasitas, is_aktif, req.params.id]
         );
         res.json({ success: true, message: 'Kelas berhasil diperbarui' });
@@ -120,24 +120,24 @@ const removeGuru = async (req, res) => {
 // GET /api/kelas/guru/saya - Kelas milik guru yang login
 const getKelasSaya = async (req, res) => {
     try {
-        const [guruRows] = await db.execute('SELECT id FROM guru WHERE user_id = ?', [req.user.id]);
+        const [guruRows] = await db.execute('SELECT guru_id AS id FROM guru WHERE user_id = ?', [req.user.id]);
         if (!guruRows.length) return res.json({ success: true, data: [] });
 
         const [rows] = await db.execute(`
-            SELECT k.id, k.nama_kelas, k.tingkat_id, k.tahun_ajaran, k.kapasitas, k.is_aktif,
+            SELECT k.kelas_id AS id, k.nama_kelas, k.tingkat_id, k.tahun_ajaran, k.kapasitas, k.is_aktif,
                    ANY_VALUE(t.nama) AS tingkat_nama,
                    ANY_VALUE(kg.is_wali_kelas) AS is_wali_kelas,
-                   COUNT(DISTINCT s.id) AS jml_siswa,
+                   COUNT(DISTINCT s.siswa_id) AS jml_siswa,
                    (SELECT COUNT(*) FROM perkembangan_harian ph 
-                    JOIN siswa s2 ON s2.id = ph.siswa_id AND s2.kelas_id = k.id
+                    JOIN siswa s2 ON s2.siswa_id = ph.siswa_id AND s2.kelas_id = k.kelas_id
                     WHERE ph.guru_id = ? AND ph.tanggal = CURDATE()) AS input_hari_ini,
                    (SELECT COUNT(*) FROM pesan p WHERE p.penerima_id = ? AND p.is_dibaca = 0) AS pesan_masuk
             FROM kelas k
-            JOIN tingkat t ON t.id = k.tingkat_id
-            JOIN kelas_guru kg ON kg.kelas_id = k.id AND kg.guru_id = ?
-            LEFT JOIN siswa s ON s.kelas_id = k.id AND s.is_aktif = 1
+            JOIN tingkat t ON t.tingkat_id = k.tingkat_id
+            JOIN kelas_guru kg ON kg.kelas_id = k.kelas_id AND kg.guru_id = ?
+            LEFT JOIN siswa s ON s.kelas_id = k.kelas_id AND s.is_aktif = 1
             WHERE k.is_aktif = 1
-            GROUP BY k.id
+            GROUP BY k.kelas_id
         `, [guruRows[0].id, req.user.id, guruRows[0].id]);
 
         res.json({ success: true, data: rows });

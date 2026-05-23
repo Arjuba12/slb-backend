@@ -51,13 +51,13 @@ const getBySiswa = async (req, res) => {
         await ensurePpiTargetColumns();
 
         const [rows] = await db.execute(`
-            SELECT p.*, s.nama AS nama_siswa, s.kebutuhan_khusus,
+            SELECT p.*, p.ppi_id AS id, s.nama AS nama_siswa, s.kebutuhan_khusus,
                    k.nama_kelas, u.nama AS nama_guru
             FROM ppi p
-            JOIN siswa s ON s.id = p.siswa_id
-            LEFT JOIN kelas k ON k.id = s.kelas_id
-            JOIN guru g ON g.id = p.guru_id
-            JOIN users u ON u.id = g.user_id
+            JOIN siswa s ON s.siswa_id = p.siswa_id
+            LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
+            JOIN guru g ON g.guru_id = p.guru_id
+            JOIN users u ON u.user_id = g.user_id
             WHERE p.siswa_id = ?
             ORDER BY p.created_at DESC
         `, [req.params.siswaId]);
@@ -66,9 +66,9 @@ const getBySiswa = async (req, res) => {
             const [detail] = await db.execute(`
                 SELECT pd.*, ap.nama AS aspek_nama, ap.kode
                 FROM ppi_detail pd
-                JOIN aspek_perkembangan ap ON ap.id = pd.aspek_id
+                JOIN aspek_perkembangan ap ON ap.aspek_id = pd.aspek_id
                 WHERE pd.ppi_id = ?
-            `, [ppi.id]);
+            `, [ppi.ppi_id]);
             ppi.detail = detail;
             normalizePpiTargets(ppi);
         }
@@ -85,14 +85,14 @@ const getById = async (req, res) => {
         await ensurePpiTargetColumns();
 
         const [rows] = await db.execute(`
-            SELECT p.*, s.nama AS nama_siswa, s.kebutuhan_khusus,
+            SELECT p.*, p.ppi_id AS id, s.nama AS nama_siswa, s.kebutuhan_khusus,
                    k.nama_kelas, u.nama AS nama_guru
             FROM ppi p
-            JOIN siswa s ON s.id = p.siswa_id
-            LEFT JOIN kelas k ON k.id = s.kelas_id
-            JOIN guru g ON g.id = p.guru_id
-            JOIN users u ON u.id = g.user_id
-            WHERE p.id = ?
+            JOIN siswa s ON s.siswa_id = p.siswa_id
+            LEFT JOIN kelas k ON k.kelas_id = s.kelas_id
+            JOIN guru g ON g.guru_id = p.guru_id
+            JOIN users u ON u.user_id = g.user_id
+            WHERE p.ppi_id = ?
         `, [req.params.id]);
 
         if (!rows.length) return res.status(404).json({ success: false, message: 'PPI tidak ditemukan' });
@@ -100,7 +100,7 @@ const getById = async (req, res) => {
         const [detail] = await db.execute(`
             SELECT pd.*, ap.nama AS aspek_nama, ap.kode
             FROM ppi_detail pd
-            JOIN aspek_perkembangan ap ON ap.id = pd.aspek_id
+            JOIN aspek_perkembangan ap ON ap.aspek_id = pd.aspek_id
             WHERE pd.ppi_id = ?
         `, [req.params.id]);
 
@@ -138,7 +138,7 @@ const create = async (req, res) => {
 
         // cari guru berdasarkan user login
         const [guruRows] = await db.execute(
-            'SELECT id FROM guru WHERE user_id = ?',
+            'SELECT guru_id AS id FROM guru WHERE user_id = ?',
             [req.user.id]
         );
 
@@ -252,7 +252,7 @@ const update = async (req, res) => {
                  target_komunikasi = COALESCE(?, target_komunikasi),
                  target_bina_diri = COALESCE(?, target_bina_diri),
                  updated_at = NOW()
-             WHERE id = ?`,
+             WHERE ppi_id = ?`,
             [
                 target_utama || null,
                 status || null,
@@ -296,7 +296,7 @@ const getByKelas = async (req, res) => {
 
         let query = `
             SELECT
-                p.id,
+                p.ppi_id AS id,
                 p.semester,
                 p.tahun_ajaran,
                 p.status,
@@ -306,7 +306,7 @@ const getByKelas = async (req, res) => {
                 p.target_komunikasi,
                 p.target_bina_diri,
 
-                s.id AS siswa_id,
+                s.siswa_id AS siswa_id,
                 s.nama AS nama_siswa,
                 s.kebutuhan_khusus,
 
@@ -325,16 +325,16 @@ const getByKelas = async (req, res) => {
             FROM ppi p
 
             JOIN siswa s
-                ON s.id = p.siswa_id
+                ON s.siswa_id = p.siswa_id
 
             JOIN guru g
-                ON g.id = p.guru_id
+                ON g.guru_id = p.guru_id
 
             JOIN users u
-                ON u.id = g.user_id
+                ON u.user_id = g.user_id
 
             LEFT JOIN ppi_detail pd
-                ON pd.ppi_id = p.id
+                ON pd.ppi_id = p.ppi_id
 
             WHERE s.kelas_id = ?
         `;
@@ -352,7 +352,7 @@ const getByKelas = async (req, res) => {
         }
 
         query += `
-            GROUP BY p.id
+            GROUP BY p.ppi_id
             ORDER BY s.nama ASC
         `;
 

@@ -46,7 +46,7 @@ const getLogs = async (req, res) => {
         let query = `
             SELECT la.*, u.nama, u.role
             FROM log_aktivitas la
-            LEFT JOIN users u ON u.id = la.user_id
+            LEFT JOIN users u ON u.user_id = la.user_id
             WHERE 1=1
         `;
         const params = [];
@@ -91,9 +91,9 @@ const getKegiatan = async (req, res) => {
 
         const { bulan, tahun } = req.query;
         let query = `
-            SELECT kg.*, u.nama AS nama_pembuat
+            SELECT kg.*, kg.kegiatan_id AS id, u.nama AS nama_pembuat
             FROM kegiatan kg
-            LEFT JOIN users u ON u.id = kg.dibuat_oleh
+            LEFT JOIN users u ON u.user_id = kg.dibuat_oleh
             WHERE 1=1
         `;
         const params = [];
@@ -129,7 +129,7 @@ const createKegiatan = async (req, res) => {
 // DELETE /api/kegiatan/:id
 const deleteKegiatan = async (req, res) => {
     try {
-        await db.execute('DELETE FROM kegiatan WHERE id = ?', [req.params.id]);
+        await db.execute('DELETE FROM kegiatan WHERE kegiatan_id = ?', [req.params.id]);
         res.json({ success: true, message: 'Kegiatan berhasil dihapus' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error' });
@@ -143,7 +143,7 @@ const deleteKegiatan = async (req, res) => {
 // GET /api/aspek
 const getAspek = async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT * FROM aspek_perkembangan WHERE is_aktif = 1 ORDER BY id');
+        const [rows] = await db.execute('SELECT *, aspek_id AS id FROM aspek_perkembangan WHERE is_aktif = 1 ORDER BY aspek_id');
         res.json({ success: true, data: rows });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error' });
@@ -154,7 +154,7 @@ const getAspek = async (req, res) => {
 const updateAspek = async (req, res) => {
     try {
         const { bobot, deskripsi } = req.body;
-        await db.execute('UPDATE aspek_perkembangan SET bobot=?, deskripsi=? WHERE id=?', [bobot, deskripsi, req.params.id]);
+        await db.execute('UPDATE aspek_perkembangan SET bobot=?, deskripsi=? WHERE aspek_id=?', [bobot, deskripsi, req.params.id]);
         res.json({ success: true, message: 'Aspek berhasil diperbarui' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error' });
@@ -164,7 +164,7 @@ const updateAspek = async (req, res) => {
 // GET /api/tingkat
 const getTingkat = async (req, res) => {
     try {
-        const [rows] = await db.execute('SELECT * FROM tingkat ORDER BY id');
+        const [rows] = await db.execute('SELECT *, tingkat_id AS id FROM tingkat ORDER BY tingkat_id');
         res.json({ success: true, data: rows });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Server error' });

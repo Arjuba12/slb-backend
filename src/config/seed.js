@@ -34,7 +34,7 @@ async function seed() {
             );
             if (r.insertId) userIds[u.email] = r.insertId;
             else {
-                const [existing] = await db.execute('SELECT id FROM users WHERE email = ?', [u.email]);
+                const [existing] = await db.execute('SELECT user_id AS id FROM users WHERE email = ?', [u.email]);
                 userIds[u.email] = existing[0].id;
             }
         }
@@ -52,7 +52,7 @@ async function seed() {
             );
             if (r.insertId) guruIds[email] = r.insertId;
             else {
-                const [existing] = await db.execute('SELECT id FROM guru WHERE user_id = ?', [userIds[email]]);
+                const [existing] = await db.execute('SELECT guru_id AS id FROM guru WHERE user_id = ?', [userIds[email]]);
                 guruIds[email] = existing[0].id;
             }
         }
@@ -77,7 +77,7 @@ async function seed() {
             );
             if (r.insertId) kelasIds[k.nama_kelas] = r.insertId;
             else {
-                const [existing] = await db.execute('SELECT id FROM kelas WHERE nama_kelas = ? AND tahun_ajaran = ?', [k.nama_kelas, k.tahun_ajaran]);
+                const [existing] = await db.execute('SELECT kelas_id AS id FROM kelas WHERE nama_kelas = ? AND tahun_ajaran = ?', [k.nama_kelas, k.tahun_ajaran]);
                 kelasIds[k.nama_kelas] = existing[0].id;
             }
         }
@@ -121,7 +121,7 @@ async function seed() {
             );
             if (r.insertId) siswaIds[s.nisn] = r.insertId;
             else {
-                const [existing] = await db.execute('SELECT id FROM siswa WHERE nisn = ?', [s.nisn]);
+                const [existing] = await db.execute('SELECT siswa_id AS id FROM siswa WHERE nisn = ?', [s.nisn]);
                 siswaIds[s.nisn] = existing[0].id;
             }
         }
@@ -143,7 +143,7 @@ async function seed() {
         // ==============================
         // SAMPLE PERKEMBANGAN HARIAN
         // ==============================
-        const [aspekRows] = await db.execute('SELECT id, kode FROM aspek_perkembangan');
+        const [aspekRows] = await db.execute('SELECT aspek_id AS id, kode FROM aspek_perkembangan');
         const guruHartiniId = guruIds['bu.hartini@slb.sch.id'];
         const dates = [];
         for (let i = 30; i >= 0; i--) {

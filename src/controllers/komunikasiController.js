@@ -8,11 +8,11 @@ const db = require('../config/database');
 const getInbox = async (req, res) => {
     try {
         const [rows] = await db.execute(`
-            SELECT p.*, u.nama AS nama_pengirim, u.role AS role_pengirim,
+            SELECT p.*, p.pesan_id AS id, u.nama AS nama_pengirim, u.role AS role_pengirim,
                    s.nama AS nama_siswa
             FROM pesan p
-            JOIN users u ON u.id = p.pengirim_id
-            LEFT JOIN siswa s ON s.id = p.siswa_id
+            JOIN users u ON u.user_id = p.pengirim_id
+            LEFT JOIN siswa s ON s.siswa_id = p.siswa_id
             WHERE p.penerima_id = ?
             ORDER BY p.created_at DESC
         `, [req.user.id]);
@@ -29,9 +29,9 @@ const getPercakapan = async (req, res) => {
     try {
         const otherId = req.params.userId;
         const [rows] = await db.execute(`
-            SELECT p.*, u_from.nama AS nama_pengirim
+            SELECT p.*, p.pesan_id AS id, u_from.nama AS nama_pengirim
             FROM pesan p
-            JOIN users u_from ON u_from.id = p.pengirim_id
+            JOIN users u_from ON u_from.user_id = p.pengirim_id
             WHERE (p.pengirim_id = ? AND p.penerima_id = ?)
                OR (p.pengirim_id = ? AND p.penerima_id = ?)
             ORDER BY p.created_at ASC
@@ -52,17 +52,17 @@ const getPercakapan = async (req, res) => {
 // GET /api/pesan/kontak - Daftar kontak yang bisa dikirim pesan
 const getKontak = async (req, res) => {
     try {
-        let query = `SELECT u.id, u.nama, u.role, u.foto FROM users u WHERE u.id != ? AND u.is_aktif = 1`;
+        let query = `SELECT u.user_id AS id, u.nama, u.role, u.foto FROM users u WHERE u.user_id != ? AND u.is_aktif = 1`;
         const params = [req.user.id];
 
         // Guru hanya chat dengan wali murid dari kelas yang dia ampu.
         if (req.user.role === 'guru') {
-            query += ` AND u.role = 'wali' AND u.id IN (
+            query += ` AND u.role = 'wali' AND u.user_id IN (
                 SELECT DISTINCT ws.user_id
                 FROM wali_siswa ws
-                JOIN siswa s ON s.id = ws.siswa_id
+                JOIN siswa s ON s.siswa_id = ws.siswa_id
                 JOIN kelas_guru kg ON kg.kelas_id = s.kelas_id
-                JOIN guru g ON g.id = kg.guru_id
+                JOIN guru g ON g.guru_id = kg.guru_id
                 WHERE g.user_id = ?
             )`;
             params.push(req.user.id);
@@ -70,12 +70,12 @@ const getKontak = async (req, res) => {
 
         // Wali hanya bisa chat dengan guru kelasnya
         if (req.user.role === 'wali') {
-            query += ` AND u.role = 'guru' AND u.id IN (
-                SELECT DISTINCT gu.id FROM users gu
-                JOIN guru g ON g.user_id = gu.id
-                JOIN kelas_guru kg ON kg.guru_id = g.id
+            query += ` AND u.role = 'guru' AND u.user_id IN (
+                SELECT DISTINCT gu.user_id FROM users gu
+                JOIN guru g ON g.user_id = gu.user_id
+                JOIN kelas_guru kg ON kg.guru_id = g.guru_id
                 JOIN siswa s ON s.kelas_id = kg.kelas_id
-                JOIN wali_siswa ws ON ws.siswa_id = s.id AND ws.user_id = ?
+                JOIN wali_siswa ws ON ws.siswa_id = s.siswa_id AND ws.user_id = ?
             )`;
             params.push(req.user.id);
         }
@@ -106,7 +106,7 @@ const getKontak = async (req, res) => {
             let siswaQuery = `
                 SELECT GROUP_CONCAT(DISTINCT s.nama ORDER BY s.nama SEPARATOR ', ') AS nama_siswa
                 FROM wali_siswa ws
-                JOIN siswa s ON s.id = ws.siswa_id
+                JOIN siswa s ON s.siswa_id = ws.siswa_id
                 WHERE ws.user_id = ?
             `;
             const siswaParams = [kontak.id];
@@ -116,7 +116,7 @@ const getKontak = async (req, res) => {
                     AND s.kelas_id IN (
                         SELECT kg.kelas_id
                         FROM kelas_guru kg
-                        JOIN guru g ON g.id = kg.guru_id
+                        JOIN guru g ON g.guru_id = kg.guru_id
                         WHERE g.user_id = ?
                     )
                 `;
@@ -128,7 +128,7 @@ const getKontak = async (req, res) => {
                     AND s.kelas_id IN (
                         SELECT kg.kelas_id
                         FROM kelas_guru kg
-                        JOIN guru g ON g.id = kg.guru_id
+                        JOIN guru g ON g.guru_id = kg.guru_id
                         WHERE g.user_id = ?
                     )
                 `;
@@ -154,7 +154,7 @@ const kirimPesan = async (req, res) => {
         }
 
         const [penerimaRows] = await db.execute(
-            'SELECT id, role FROM users WHERE id = ? AND is_aktif = 1',
+            'SELECT user_id AS id, role FROM users WHERE user_id = ? AND is_aktif = 1',
             [penerima_id]
         );
 
@@ -166,9 +166,9 @@ const kirimPesan = async (req, res) => {
             const [allowedRows] = await db.execute(`
                 SELECT 1
                 FROM wali_siswa ws
-                JOIN siswa s ON s.id = ws.siswa_id
+                JOIN siswa s ON s.siswa_id = ws.siswa_id
                 JOIN kelas_guru kg ON kg.kelas_id = s.kelas_id
-                JOIN guru g ON g.id = kg.guru_id
+                JOIN guru g ON g.guru_id = kg.guru_id
                 WHERE g.user_id = ? AND ws.user_id = ?
                 LIMIT 1
             `, [req.user.id, penerima_id]);
@@ -182,9 +182,9 @@ const kirimPesan = async (req, res) => {
             const [allowedRows] = await db.execute(`
                 SELECT 1
                 FROM guru g
-                JOIN kelas_guru kg ON kg.guru_id = g.id
+                JOIN kelas_guru kg ON kg.guru_id = g.guru_id
                 JOIN siswa s ON s.kelas_id = kg.kelas_id
-                JOIN wali_siswa ws ON ws.siswa_id = s.id
+                JOIN wali_siswa ws ON ws.siswa_id = s.siswa_id
                 WHERE ws.user_id = ? AND g.user_id = ?
                 LIMIT 1
             `, [req.user.id, penerima_id]);
@@ -209,7 +209,7 @@ const kirimPesan = async (req, res) => {
 const bacaPesan = async (req, res) => {
     try {
         await db.execute(
-            'UPDATE pesan SET is_dibaca = 1, dibaca_pada = NOW() WHERE id = ? AND penerima_id = ?',
+            'UPDATE pesan SET is_dibaca = 1, dibaca_pada = NOW() WHERE pesan_id = ? AND penerima_id = ?',
             [req.params.id, req.user.id]
         );
         res.json({ success: true, message: 'Pesan ditandai dibaca' });
@@ -238,7 +238,7 @@ const getPengumuman = async (req, res) => {
                     OR pg.kelas_id IN (
                         SELECT s.kelas_id
                         FROM wali_siswa ws
-                        JOIN siswa s ON s.id = ws.siswa_id
+                        JOIN siswa s ON s.siswa_id = ws.siswa_id
                         WHERE ws.user_id = ?
                     )
               )
@@ -247,14 +247,14 @@ const getPengumuman = async (req, res) => {
         }
 
         const [rows] = await db.execute(`
-            SELECT pg.*, u.nama AS nama_pengirim, k.nama_kelas,
-                   (SELECT COUNT(*) FROM pengumuman_read pr WHERE pr.pengumuman_id = pg.id) AS total_dibaca,
+            SELECT pg.*, pg.pengumuman_id AS id, u.nama AS nama_pengirim, k.nama_kelas,
+                   (SELECT COUNT(*) FROM pengumuman_read pr WHERE pr.pengumuman_id = pg.pengumuman_id) AS total_dibaca,
                    CASE
                        WHEN pg.target_role = 'wali' AND pg.kelas_id IS NOT NULL THEN (
                            SELECT COUNT(DISTINCT ws.user_id)
                            FROM wali_siswa ws
-                           JOIN siswa s ON s.id = ws.siswa_id
-                           JOIN users u2 ON u2.id = ws.user_id AND u2.is_aktif = 1
+                           JOIN siswa s ON s.siswa_id = ws.siswa_id
+                           JOIN users u2 ON u2.user_id = ws.user_id AND u2.is_aktif = 1
                            WHERE s.kelas_id = pg.kelas_id
                        )
                        ELSE (
@@ -264,10 +264,10 @@ const getPengumuman = async (req, res) => {
                              AND (pg.target_role = 'semua' OR u2.role = pg.target_role)
                        )
                    END AS total_penerima,
-                   EXISTS(SELECT 1 FROM pengumuman_read pr WHERE pr.pengumuman_id = pg.id AND pr.user_id = ?) AS sudah_dibaca
+                   EXISTS(SELECT 1 FROM pengumuman_read pr WHERE pr.pengumuman_id = pg.pengumuman_id AND pr.user_id = ?) AS sudah_dibaca
             FROM pengumuman pg
-            JOIN users u ON u.id = pg.pengirim_id
-            LEFT JOIN kelas k ON k.id = pg.kelas_id
+            JOIN users u ON u.user_id = pg.pengirim_id
+            LEFT JOIN kelas k ON k.kelas_id = pg.kelas_id
             WHERE pg.status = 'Terkirim'
               ${visibilityFilter}
             ORDER BY pg.created_at DESC
@@ -300,7 +300,7 @@ const buatPengumuman = async (req, res) => {
             const [allowedRows] = await db.execute(`
                 SELECT 1
                 FROM guru g
-                JOIN kelas_guru kg ON kg.guru_id = g.id
+                JOIN kelas_guru kg ON kg.guru_id = g.guru_id
                 WHERE g.user_id = ? AND kg.kelas_id = ?
                 LIMIT 1
             `, [req.user.id, kelasId]);
