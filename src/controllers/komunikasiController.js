@@ -55,17 +55,28 @@ const getKontak = async (req, res) => {
         let query = `SELECT u.user_id AS id, u.nama, u.role, u.foto FROM users u WHERE u.user_id != ? AND u.is_aktif = 1`;
         const params = [req.user.id];
 
-        // Guru hanya chat dengan wali murid dari kelas yang dia ampu.
+        // Guru bisa chat dengan wali murid dari kelas yang dia ampu,
+        // serta user yang sudah punya percakapan dengannya (mis. kepsek mengirim pengingat).
         if (req.user.role === 'guru') {
-            query += ` AND u.role = 'wali' AND u.user_id IN (
-                SELECT DISTINCT ws.user_id
-                FROM wali_siswa ws
-                JOIN siswa s ON s.siswa_id = ws.siswa_id
-                JOIN kelas_guru kg ON kg.kelas_id = s.kelas_id
-                JOIN guru g ON g.guru_id = kg.guru_id
-                WHERE g.user_id = ?
+            query += ` AND (
+                (u.role = 'wali' AND u.user_id IN (
+                    SELECT DISTINCT ws.user_id
+                    FROM wali_siswa ws
+                    JOIN siswa s ON s.siswa_id = ws.siswa_id
+                    JOIN kelas_guru kg ON kg.kelas_id = s.kelas_id
+                    JOIN guru g ON g.guru_id = kg.guru_id
+                    WHERE g.user_id = ?
+                ))
+                OR u.user_id IN (
+                    SELECT DISTINCT CASE
+                        WHEN p.pengirim_id = ? THEN p.penerima_id
+                        ELSE p.pengirim_id
+                    END
+                    FROM pesan p
+                    WHERE p.pengirim_id = ? OR p.penerima_id = ?
+                )
             )`;
-            params.push(req.user.id);
+            params.push(req.user.id, req.user.id, req.user.id, req.user.id);
         }
 
         // Wali hanya bisa chat dengan guru kelasnya
@@ -162,7 +173,7 @@ const kirimPesan = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Penerima tidak ditemukan' });
         }
 
-        if (req.user.role === 'guru') {
+        if (req.user.role === 'guru' && penerimaRows[0].role === 'wali') {
             const [allowedRows] = await db.execute(`
                 SELECT 1
                 FROM wali_siswa ws

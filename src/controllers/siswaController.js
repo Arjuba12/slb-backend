@@ -1,5 +1,39 @@
 const db = require('../config/database');
 
+const normalizeOptionalInt = (value) => {
+    if (value === undefined || value === null || value === '') return null;
+    const parsed = parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+};
+
+const normalizeGender = (value) => {
+    if (value === 'Laki-laki') return 'L';
+    if (value === 'Perempuan') return 'P';
+    return value;
+};
+
+const syncPrimaryWali = async (siswaId, waliUserId, hubungan = 'Wali') => {
+    const normalizedWaliId = normalizeOptionalInt(waliUserId);
+    if (!normalizedWaliId) return;
+
+    const [users] = await db.execute(
+        "SELECT user_id AS id FROM users WHERE user_id = ? AND role = 'wali' AND is_aktif = 1",
+        [normalizedWaliId]
+    );
+    if (!users.length) {
+        const err = new Error('Akun wali tidak valid');
+        err.status = 400;
+        throw err;
+    }
+
+    await db.execute('UPDATE wali_siswa SET is_primer = 0 WHERE siswa_id = ?', [siswaId]);
+    await db.execute(
+        `INSERT INTO wali_siswa (siswa_id, user_id, hubungan, is_primer)
+         VALUES (?, ?, ?, 1)`,
+        [siswaId, normalizedWaliId, hubungan || 'Wali']
+    );
+};
+
 // GET /api/siswa - Admin/Kepsek/Guru
 const getAll = async (req, res) => {
     try {
@@ -221,6 +255,140 @@ const getById = async (req, res) => {
     }
 };
 
+// POST /api/siswa - Admin
+const create = async (req, res) => {
+    try {
+        const {
+            nisn,
+            nama,
+            tgl_lahir,
+            jenis_kelamin,
+            alamat,
+            kebutuhan_khusus,
+            kelas_id,
+            tahun_masuk,
+            wali_user_id,
+            hubungan
+        } = req.body;
+
+        if (!nisn || !nama || !tgl_lahir || !jenis_kelamin) {
+            return res.status(400).json({ success: false, message: 'NISN, nama, tanggal lahir, dan jenis kelamin wajib diisi' });
+        }
+
+        const [result] = await db.execute(
+            `INSERT INTO siswa (nisn, nama, tgl_lahir, jenis_kelamin, alamat, kebutuhan_khusus, kelas_id, tahun_masuk, is_aktif)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+            [
+                nisn,
+                nama,
+                tgl_lahir,
+                normalizeGender(jenis_kelamin),
+                alamat || null,
+                kebutuhan_khusus || null,
+                normalizeOptionalInt(kelas_id),
+                normalizeOptionalInt(tahun_masuk)
+            ]
+        );
+
+        await syncPrimaryWali(result.insertId, wali_user_id, hubungan);
+
+        await db.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Buat Siswa', `Siswa baru: ${nama}`]
+        );
+
+        res.status(201).json({ success: true, message: 'Siswa berhasil dibuat', data: { id: result.insertId } });
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ success: false, message: 'NISN sudah terdaftar' });
+        }
+        res.status(err.status || 500).json({ success: false, message: err.message || 'Server error' });
+    }
+};
+
+// PUT /api/siswa/:id - Admin
+const update = async (req, res) => {
+    try {
+        const {
+            nisn,
+            nama,
+            tgl_lahir,
+            jenis_kelamin,
+            alamat,
+            kebutuhan_khusus,
+            kelas_id,
+            tahun_masuk,
+            is_aktif,
+            wali_user_id,
+            hubungan
+        } = req.body;
+
+        if (!nisn || !nama || !tgl_lahir || !jenis_kelamin) {
+            return res.status(400).json({ success: false, message: 'NISN, nama, tanggal lahir, dan jenis kelamin wajib diisi' });
+        }
+
+        const [result] = await db.execute(
+            `UPDATE siswa
+             SET nisn = ?, nama = ?, tgl_lahir = ?, jenis_kelamin = ?, alamat = ?,
+                 kebutuhan_khusus = ?, kelas_id = ?, tahun_masuk = ?, is_aktif = ?
+             WHERE siswa_id = ?`,
+            [
+                nisn,
+                nama,
+                tgl_lahir,
+                normalizeGender(jenis_kelamin),
+                alamat || null,
+                kebutuhan_khusus || null,
+                normalizeOptionalInt(kelas_id),
+                normalizeOptionalInt(tahun_masuk),
+                is_aktif === undefined || is_aktif === null ? 1 : normalizeOptionalInt(is_aktif),
+                req.params.id
+            ]
+        );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({ success: false, message: 'Siswa tidak ditemukan' });
+        }
+
+        await syncPrimaryWali(req.params.id, wali_user_id, hubungan);
+
+        await db.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Update Siswa', `Siswa diperbarui: ${nama}`]
+        );
+
+        res.json({ success: true, message: 'Siswa berhasil diperbarui' });
+    } catch (err) {
+        if (err.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ success: false, message: 'NISN sudah digunakan siswa lain' });
+        }
+        res.status(err.status || 500).json({ success: false, message: err.message || 'Server error' });
+    }
+};
+
+// DELETE /api/siswa/:id - Admin, soft delete
+const remove = async (req, res) => {
+    try {
+        const [result] = await db.execute(
+            'UPDATE siswa SET is_aktif = 0 WHERE siswa_id = ?',
+            [req.params.id]
+        );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({ success: false, message: 'Siswa tidak ditemukan' });
+        }
+
+        await db.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Nonaktifkan Siswa', `Siswa ID: ${req.params.id}`]
+        );
+
+        res.json({ success: true, message: 'Siswa berhasil dinonaktifkan' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // GET /api/siswa/rekap - Rekap ringkas untuk tabel daftar siswa
 const getRekap = async (req, res) => {
     try {
@@ -397,4 +565,7 @@ module.exports = {
     getAll,
     getById,
     getRekap,
+    create,
+    update,
+    remove,
 };

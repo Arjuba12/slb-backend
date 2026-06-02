@@ -140,7 +140,8 @@ const getKinerjaGuru = async (req, res) => {
         const y = tahun || new Date().getFullYear();
 
         const [rows] = await db.execute(`
-            SELECT u.nama AS nama_guru,
+            SELECT u.user_id AS user_id,
+                   u.nama AS nama_guru,
                    GROUP_CONCAT(DISTINCT k.nama_kelas ORDER BY k.nama_kelas SEPARATOR ', ') AS kelas,
                    COUNT(DISTINCT ph.perkembangan_id) AS total_input,
                    COUNT(DISTINCT s.siswa_id) AS total_siswa,

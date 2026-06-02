@@ -197,9 +197,9 @@ router.get(
 
 // DEBUG SEMENTARA
 // router.get('/siswa/perlu-perhatian', auth, authorize('admin', 'kepsek', 'guru'), siswaCtrl.perluPerhatian);
-// router.post('/siswa', auth, authorize('admin'), siswaCtrl.create);
-// router.put('/siswa/:id', auth, authorize('admin'), siswaCtrl.update);
-// router.delete('/siswa/:id', auth, authorize('admin'), siswaCtrl.remove);
+router.post('/siswa', auth, authorize('admin'), siswaCtrl.create);
+router.put('/siswa/:id', auth, authorize('admin'), siswaCtrl.update);
+router.delete('/siswa/:id', auth, authorize('admin'), siswaCtrl.remove);
 
 
 
