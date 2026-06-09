@@ -6,7 +6,6 @@ require('dotenv').config();
 
 const routes = require('./routes');
 const swaggerSpec = require('./config/swagger');
-const db = require('./config/database');
 
 const app = express();
 
@@ -48,18 +47,6 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), app: 'SLB Monitoring API' });
-});
-
-app.get('/health/database', async (req, res) => {
-    try {
-        await db.execute('SELECT user_id FROM users LIMIT 1');
-        res.json({ status: 'ok' });
-    } catch (err) {
-        res.status(503).json({
-            status: 'unavailable',
-            code: err.code || 'DATABASE_ERROR'
-        });
-    }
 });
 
 // 404 Handler
