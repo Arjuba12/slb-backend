@@ -63,10 +63,15 @@ app.use((err, req, res, next) => {
 // ============================================================
 // START SERVER
 // ============================================================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+const PORT = Number(process.env.PORT) || 3000;
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 SLB Monitoring API running on port ${PORT}`);
     console.log(`📡 Health check : http://localhost:${PORT}/health`);
     console.log(`🔑 Base URL     : http://localhost:${PORT}/api`);
     console.log(`📖 API Docs     : http://localhost:${PORT}/api/docs`);
+});
+
+server.on('error', err => {
+    console.error('HTTP server failed to start:', err);
+    process.exit(1);
 });
