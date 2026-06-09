@@ -52,16 +52,22 @@ const uploadToSupabase = async (file, folder = 'kegiatan') => {
     const cfg = requireSupabaseConfig();
     const objectPath = `${folder}/${safeStorageName(file.originalname)}`;
     const endpoint = `${cfg.url.replace(/\/$/, '')}/storage/v1/object/${cfg.bucket}/${objectPath}`;
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-            apikey: cfg.key,
-            Authorization: `Bearer ${cfg.key}`,
-            'Content-Type': file.mimetype,
-            'x-upsert': 'false'
-        },
-        body: file.buffer
-    });
+    let response;
+    try {
+        response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                apikey: cfg.key,
+                Authorization: `Bearer ${cfg.key}`,
+                'Content-Type': file.mimetype,
+                'x-upsert': 'false'
+            },
+            body: file.buffer
+        });
+    } catch (err) {
+        const causeCode = err.cause && err.cause.code ? ` (${err.cause.code})` : '';
+        throw new Error(`Supabase Storage tidak dapat dihubungi${causeCode}. Periksa SUPABASE_URL`);
+    }
 
     if (!response.ok) {
         const detail = await response.text();
