@@ -1,12 +1,16 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
+const databaseConfig = {
+    host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+    port: Number(process.env.DB_PORT || process.env.MYSQLPORT || 3306),
+    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'slb_monitoring'
+};
+
 const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'slb_monitoring',
+    ...databaseConfig,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -15,11 +19,12 @@ const pool = mysql.createPool({
 
 pool.getConnection()
     .then(conn => {
-        console.log('✅ Database connected successfully');
+        console.log('Database connected successfully');
         conn.release();
     })
     .catch(err => {
-        console.error('❌ Database connection failed:', err.message);
+        console.error('Database connection failed:', err.code || err.message);
     });
 
 module.exports = pool;
+module.exports.databaseConfig = databaseConfig;
