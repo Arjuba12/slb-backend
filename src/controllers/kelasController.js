@@ -1,5 +1,20 @@
 const db = require('../config/database');
 
+const updateWaliKelas = async (connection, kelasId, guruId) => {
+    await connection.execute(
+        'UPDATE kelas_guru SET is_wali_kelas = 0 WHERE kelas_id = ? AND is_wali_kelas = 1',
+        [kelasId]
+    );
+
+    if (guruId) {
+        await connection.execute(
+            `INSERT INTO kelas_guru (kelas_id, guru_id, is_wali_kelas) VALUES (?, ?, 1)
+             ON DUPLICATE KEY UPDATE is_wali_kelas = 1`,
+            [kelasId, guruId]
+        );
+    }
+};
+
 // GET /api/kelas
 const getAll = async (req, res) => {
     try {
@@ -63,29 +78,47 @@ const getById = async (req, res) => {
 
 // POST /api/kelas - Admin only
 const create = async (req, res) => {
+    const connection = await db.getConnection();
     try {
-        const { nama_kelas, tingkat_id, tahun_ajaran, kapasitas } = req.body;
-        const [result] = await db.execute(
+        const { nama_kelas, tingkat_id, tahun_ajaran, kapasitas, wali_kelas_guru_id } = req.body;
+        await connection.beginTransaction();
+        const [result] = await connection.execute(
             'INSERT INTO kelas (nama_kelas, tingkat_id, tahun_ajaran, kapasitas) VALUES (?, ?, ?, ?)',
             [nama_kelas, tingkat_id, tahun_ajaran, kapasitas || 10]
         );
+        await updateWaliKelas(connection, result.insertId, wali_kelas_guru_id);
+        await connection.commit();
         res.status(201).json({ success: true, message: 'Kelas berhasil dibuat', data: { id: result.insertId } });
     } catch (err) {
+        await connection.rollback();
+        console.error('kelasController.create error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        connection.release();
     }
 };
 
 // PUT /api/kelas/:id
 const update = async (req, res) => {
+    const connection = await db.getConnection();
     try {
-        const { nama_kelas, kapasitas, is_aktif } = req.body;
-        await db.execute(
+        const { nama_kelas, kapasitas, is_aktif, wali_kelas_guru_id } = req.body;
+        await connection.beginTransaction();
+        await connection.execute(
             'UPDATE kelas SET nama_kelas=?, kapasitas=?, is_aktif=? WHERE kelas_id=?',
             [nama_kelas, kapasitas, is_aktif, req.params.id]
         );
+        if (Object.prototype.hasOwnProperty.call(req.body, 'wali_kelas_guru_id')) {
+            await updateWaliKelas(connection, req.params.id, wali_kelas_guru_id);
+        }
+        await connection.commit();
         res.json({ success: true, message: 'Kelas berhasil diperbarui' });
     } catch (err) {
+        await connection.rollback();
+        console.error('kelasController.update error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        connection.release();
     }
 };
 

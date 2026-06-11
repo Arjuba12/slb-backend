@@ -7,7 +7,7 @@ const getAll = async (req, res) => {
         const { role, is_aktif, search } = req.query;
         let query = `
             SELECT u.user_id AS id, u.nama, u.email, u.role, u.no_hp, u.is_aktif, u.last_login, u.login_ip,
-                   g.nip, g.spesialisasi,
+                   g.guru_id, g.nip, g.spesialisasi,
                    GROUP_CONCAT(DISTINCT k.nama_kelas ORDER BY k.nama_kelas SEPARATOR ', ') AS kelas_mengajar
             FROM users u
             LEFT JOIN guru g ON g.user_id = u.user_id
