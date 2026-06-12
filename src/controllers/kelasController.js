@@ -122,30 +122,40 @@ const update = async (req, res) => {
     }
 };
 
-// DELETE /api/kelas/:id - Admin, soft delete
+// DELETE /api/kelas/:id - Admin, permanent delete
 const remove = async (req, res) => {
+    const connection = await db.getConnection();
     try {
-        const [result] = await db.execute(
-            'UPDATE kelas SET is_aktif = 0 WHERE kelas_id = ? AND is_aktif = 1',
+        await connection.beginTransaction();
+        const [rows] = await connection.execute(
+            'SELECT nama_kelas FROM kelas WHERE kelas_id = ?',
             [req.params.id]
         );
 
-        if (!result.affectedRows) {
+        if (!rows.length) {
+            await connection.rollback();
             return res.status(404).json({
                 success: false,
-                message: 'Kelas tidak ditemukan atau sudah tidak aktif'
+                message: 'Kelas tidak ditemukan'
             });
         }
 
-        await db.execute(
+        // absensi.kelas_id does not cascade, so remove attendance rows first.
+        await connection.execute('DELETE FROM absensi WHERE kelas_id = ?', [req.params.id]);
+        await connection.execute('DELETE FROM kelas WHERE kelas_id = ?', [req.params.id]);
+        await connection.execute(
             'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
-            [req.user.id, 'Hapus Kelas', `Kelas ID: ${req.params.id}`]
+            [req.user.id, 'Hapus Kelas Permanen', `${rows[0].nama_kelas} (ID: ${req.params.id})`]
         );
+        await connection.commit();
 
-        res.json({ success: true, message: 'Kelas berhasil dihapus dari data aktif' });
+        res.json({ success: true, message: 'Kelas berhasil dihapus permanen' });
     } catch (err) {
+        await connection.rollback();
         console.error('kelasController.remove error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        connection.release();
     }
 };
 

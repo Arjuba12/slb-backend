@@ -104,7 +104,7 @@ const options = {
             '/siswa/{id}': {
                 get: { tags: ['👦 Siswa'], summary: 'Detail siswa + rekap capaian aspek + absensi', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }], responses: { 200: { description: 'OK' } } },
                 put: { tags: ['👦 Siswa'], summary: 'Update data siswa (admin)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } } } }, responses: { 200: { description: 'OK' } } },
-                delete: { tags: ['👦 Siswa'], summary: 'Nonaktifkan siswa (soft delete, admin)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }], responses: { 200: { description: 'OK' } } }
+                delete: { tags: ['👦 Siswa'], summary: 'Hapus siswa permanen (admin)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }], responses: { 200: { description: 'OK' } } }
             },
             // ── KELAS ─────────────────────────────────────────────
             '/kelas': {

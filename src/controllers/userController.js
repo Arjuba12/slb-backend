@@ -88,8 +88,9 @@ const update = async (req, res) => {
     }
 };
 
-// DELETE /api/users/:id - Admin, soft delete
+// DELETE /api/users/:id - Admin, permanent delete
 const remove = async (req, res) => {
+    const connection = await db.getConnection();
     try {
         const userId = Number(req.params.id);
         if (userId === req.user.id) {
@@ -99,27 +100,49 @@ const remove = async (req, res) => {
             });
         }
 
-        const [result] = await db.execute(
-            'UPDATE users SET is_aktif = 0 WHERE user_id = ? AND is_aktif = 1',
+        await connection.beginTransaction();
+        const [users] = await connection.execute(
+            'SELECT nama FROM users WHERE user_id = ?',
             [userId]
         );
 
-        if (!result.affectedRows) {
+        if (!users.length) {
+            await connection.rollback();
             return res.status(404).json({
                 success: false,
-                message: 'User tidak ditemukan atau sudah tidak aktif'
+                message: 'User tidak ditemukan'
             });
         }
 
-        await db.execute(
-            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
-            [req.user.id, 'Hapus User', `User ID: ${userId}`]
+        const [gurus] = await connection.execute(
+            'SELECT guru_id FROM guru WHERE user_id = ?',
+            [userId]
         );
+        if (gurus.length) {
+            const guruId = gurus[0].guru_id;
+            await connection.execute('DELETE FROM perkembangan_harian WHERE guru_id = ?', [guruId]);
+            await connection.execute('DELETE FROM ppi WHERE guru_id = ?', [guruId]);
+        }
 
-        res.json({ success: true, message: 'User berhasil dihapus dari data aktif' });
+        await connection.execute('UPDATE absensi SET dicatat_oleh = NULL WHERE dicatat_oleh = ?', [userId]);
+        await connection.execute('DELETE FROM pesan WHERE pengirim_id = ? OR penerima_id = ?', [userId, userId]);
+        await connection.execute('DELETE FROM pengumuman WHERE pengirim_id = ?', [userId]);
+        await connection.execute('DELETE FROM laporan WHERE dibuat_oleh = ?', [userId]);
+        await connection.execute('DELETE FROM kegiatan WHERE dibuat_oleh = ?', [userId]);
+        await connection.execute('DELETE FROM users WHERE user_id = ?', [userId]);
+        await connection.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Hapus User Permanen', `${users[0].nama} (ID: ${userId})`]
+        );
+        await connection.commit();
+
+        res.json({ success: true, message: 'User berhasil dihapus permanen' });
     } catch (err) {
+        await connection.rollback();
         console.error('userController.remove error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        connection.release();
     }
 };
 

@@ -366,26 +366,35 @@ const update = async (req, res) => {
     }
 };
 
-// DELETE /api/siswa/:id - Admin, soft delete
+// DELETE /api/siswa/:id - Admin, permanent delete
 const remove = async (req, res) => {
+    const connection = await db.getConnection();
     try {
-        const [result] = await db.execute(
-            'UPDATE siswa SET is_aktif = 0 WHERE siswa_id = ?',
+        await connection.beginTransaction();
+        const [rows] = await connection.execute(
+            'SELECT nama FROM siswa WHERE siswa_id = ?',
             [req.params.id]
         );
 
-        if (!result.affectedRows) {
+        if (!rows.length) {
+            await connection.rollback();
             return res.status(404).json({ success: false, message: 'Siswa tidak ditemukan' });
         }
 
-        await db.execute(
+        await connection.execute('DELETE FROM siswa WHERE siswa_id = ?', [req.params.id]);
+        await connection.execute(
             'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
-            [req.user.id, 'Nonaktifkan Siswa', `Siswa ID: ${req.params.id}`]
+            [req.user.id, 'Hapus Siswa Permanen', `${rows[0].nama} (ID: ${req.params.id})`]
         );
+        await connection.commit();
 
-        res.json({ success: true, message: 'Siswa berhasil dinonaktifkan' });
+        res.json({ success: true, message: 'Siswa berhasil dihapus permanen' });
     } catch (err) {
+        await connection.rollback();
+        console.error('siswaController.remove error:', err);
         res.status(500).json({ success: false, message: 'Server error' });
+    } finally {
+        connection.release();
     }
 };
 
