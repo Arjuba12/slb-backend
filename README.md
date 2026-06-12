@@ -154,6 +154,7 @@ Content-Type: application/json
 | GET    | /api/kelas/:id                  | semua      |
 | POST   | /api/kelas                      | admin      |
 | PUT    | /api/kelas/:id                  | admin      |
+| DELETE | /api/kelas/:id                  | admin      |
 | POST   | /api/kelas/:id/guru             | admin      |
 | DELETE | /api/kelas/:kelasId/guru/:guruId| admin      |
 
@@ -236,6 +237,7 @@ Content-Type: application/json
 | GET    | /api/users/guru/kinerja    | admin,kepsek |
 | POST   | /api/users                 | admin  |
 | PUT    | /api/users/:id             | admin  |
+| DELETE | /api/users/:id             | admin  |
 | PUT    | /api/users/:id/reset-password | admin |
 | GET    | /api/pengaturan            | semua  |
 | PUT    | /api/pengaturan            | admin  |

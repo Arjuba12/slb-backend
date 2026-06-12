@@ -88,6 +88,41 @@ const update = async (req, res) => {
     }
 };
 
+// DELETE /api/users/:id - Admin, soft delete
+const remove = async (req, res) => {
+    try {
+        const userId = Number(req.params.id);
+        if (userId === req.user.id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Akun yang sedang digunakan tidak dapat dihapus'
+            });
+        }
+
+        const [result] = await db.execute(
+            'UPDATE users SET is_aktif = 0 WHERE user_id = ? AND is_aktif = 1',
+            [userId]
+        );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({
+                success: false,
+                message: 'User tidak ditemukan atau sudah tidak aktif'
+            });
+        }
+
+        await db.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Hapus User', `User ID: ${userId}`]
+        );
+
+        res.json({ success: true, message: 'User berhasil dihapus dari data aktif' });
+    } catch (err) {
+        console.error('userController.remove error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // PUT /api/users/:id/reset-password - Admin reset password
 const resetPassword = async (req, res) => {
     try {
@@ -167,4 +202,4 @@ const getKinerjaGuru = async (req, res) => {
     }
 };
 
-module.exports = { getAll, create, update, resetPassword, getGuru, getKinerjaGuru };
+module.exports = { getAll, create, update, remove, resetPassword, getGuru, getKinerjaGuru };

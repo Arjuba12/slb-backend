@@ -217,6 +217,7 @@ router.get('/kelas/guru/saya', auth, authorize('guru'), kelasCtrl.getKelasSaya);
 router.get('/kelas/:id', auth, kelasCtrl.getById);
 router.post('/kelas', auth, authorize('admin'), kelasCtrl.create);
 router.put('/kelas/:id', auth, authorize('admin'), kelasCtrl.update);
+router.delete('/kelas/:id', auth, authorize('admin'), kelasCtrl.remove);
 router.post('/kelas/:id/guru', auth, authorize('admin'), kelasCtrl.assignGuru);
 router.delete('/kelas/:kelasId/guru/:guruId', auth, authorize('admin'), kelasCtrl.removeGuru);
 
@@ -321,6 +322,7 @@ router.get('/users/guru', auth, authorize('admin', 'kepsek'), userCtrl.getGuru);
 router.get('/users/guru/kinerja', auth, authorize('admin', 'kepsek'), userCtrl.getKinerjaGuru);
 router.post('/users', auth, authorize('admin'), userCtrl.create);
 router.put('/users/:id', auth, authorize('admin'), userCtrl.update);
+router.delete('/users/:id', auth, authorize('admin'), userCtrl.remove);
 router.put('/users/:id/reset-password', auth, authorize('admin'), userCtrl.resetPassword);
 
 // ============================================================

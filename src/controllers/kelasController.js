@@ -122,6 +122,33 @@ const update = async (req, res) => {
     }
 };
 
+// DELETE /api/kelas/:id - Admin, soft delete
+const remove = async (req, res) => {
+    try {
+        const [result] = await db.execute(
+            'UPDATE kelas SET is_aktif = 0 WHERE kelas_id = ? AND is_aktif = 1',
+            [req.params.id]
+        );
+
+        if (!result.affectedRows) {
+            return res.status(404).json({
+                success: false,
+                message: 'Kelas tidak ditemukan atau sudah tidak aktif'
+            });
+        }
+
+        await db.execute(
+            'INSERT INTO log_aktivitas (user_id, aksi, detail) VALUES (?, ?, ?)',
+            [req.user.id, 'Hapus Kelas', `Kelas ID: ${req.params.id}`]
+        );
+
+        res.json({ success: true, message: 'Kelas berhasil dihapus dari data aktif' });
+    } catch (err) {
+        console.error('kelasController.remove error:', err);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
+
 // POST /api/kelas/:id/guru - Assign guru ke kelas
 const assignGuru = async (req, res) => {
     try {
@@ -180,4 +207,4 @@ const getKelasSaya = async (req, res) => {
     }
 };
 
-module.exports = { getAll, getById, create, update, assignGuru, removeGuru, getKelasSaya };
+module.exports = { getAll, getById, create, update, remove, assignGuru, removeGuru, getKelasSaya };
